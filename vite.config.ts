@@ -12,4 +12,7 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Deploy target: Vercel (Build Output API). The wrapper defaults to a
+  // Cloudflare preset, which cannot run on Vercel's static hosting.
+  nitro: { preset: "vercel" },
 });
