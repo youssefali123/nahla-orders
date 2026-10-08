@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "react-hot-toast";
+import { BackButton } from "@/components/BackButton";
 import { useCart } from "@/lib/cart";
 
 export const Route = createFileRoute("/custom-order")({
@@ -35,6 +36,10 @@ function CustomOrderPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-3 pt-4">
+      <div className="mb-3 flex items-center gap-3">
+        <BackButton />
+        <h1 className="text-xl font-extrabold">طلب مخصص</h1>
+      </div>
       <form onSubmit={submit} className="space-y-4 rounded-3xl bg-card p-5 shadow-card">
         <div>
           <h1 className="text-2xl font-extrabold">اطلب اللي على مزاجك</h1>
