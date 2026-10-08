@@ -254,7 +254,7 @@ function CheckoutPage() {
       const liveGrandTotal = round2(liveTotal + (priced.length > 0 ? liveFee : 0) + liveServiceFee);
       // Recompute grand total with the service fee included.
       const orderNo = String(Math.floor(100 + Math.random() * 900));
-      const message = buildOrderMessage(priced, form, liveTotal, {
+      const message = buildOrderMessage(grouped, form, liveTotal, {
         zoneName: liveZone?.name ?? "",
         fee: liveFee,
         grandTotal: liveGrandTotal,
