@@ -132,6 +132,15 @@ button{
   }
 }
 
+@keyframes puff-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @utility anim-rise {
   opacity: 0;
   animation: rise-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
@@ -150,11 +159,16 @@ button{
   animation: dot-pulse 1.2s ease-in-out infinite;
 }
 
+@utility anim-puff-ring {
+  animation: puff-spin 1.4s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .anim-rise,
   .anim-page,
   .anim-float,
-  .anim-dot {
+  .anim-dot,
+  .anim-puff-ring {
     opacity: 1;
     animation: none;
   }

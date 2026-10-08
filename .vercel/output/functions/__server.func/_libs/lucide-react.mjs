@@ -632,6 +632,38 @@ var TriangleAlert = createLucideIcon("triangle-alert", [
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var Truck = createLucideIcon("truck", [
+	["path", {
+		d: "M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2",
+		key: "wrbu53"
+	}],
+	["path", {
+		d: "M15 18H9",
+		key: "1lyqi6"
+	}],
+	["path", {
+		d: "M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14",
+		key: "lysw3i"
+	}],
+	["circle", {
+		cx: "17",
+		cy: "18",
+		r: "2",
+		key: "332jqn"
+	}],
+	["circle", {
+		cx: "7",
+		cy: "18",
+		r: "2",
+		key: "19iecd"
+	}]
+]);
+/**
+* @license lucide-react v0.575.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var User = createLucideIcon("user", [["path", {
 	d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2",
 	key: "975kel"
@@ -655,4 +687,4 @@ var X = createLucideIcon("x", [["path", {
 	key: "d8bk6v"
 }]]);
 //#endregion
-export { ExternalLink as C, Check as D, ChevronDown as E, ArrowRight as O, GripVertical as S, ChevronLeft as T, LoaderCircle as _, ShoppingCart as a, Image as b, Shapes as c, Plus as d, Pencil as f, LogOut as g, Menu as h, Trash2 as i, ArrowLeft as k, Search as l, MessageCircle as m, User as n, ShoppingBag as o, Minus as p, TriangleAlert as r, ShieldAlert as s, X as t, Power as u, ListTree as v, ChevronUp as w, ImagePlus as x, LayoutDashboard as y };
+export { ArrowLeft as A, GripVertical as C, ChevronDown as D, ChevronLeft as E, Check as O, ImagePlus as S, ChevronUp as T, LogOut as _, Trash2 as a, LayoutDashboard as b, ShieldAlert as c, Power as d, Plus as f, Menu as g, MessageCircle as h, TriangleAlert as i, ArrowRight as k, Shapes as l, Minus as m, User as n, ShoppingCart as o, Pencil as p, Truck as r, ShoppingBag as s, X as t, Search as u, LoaderCircle as v, ExternalLink as w, Image as x, ListTree as y };

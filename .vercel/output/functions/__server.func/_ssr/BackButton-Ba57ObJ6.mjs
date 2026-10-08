@@ -1,6 +1,6 @@
 import { M as require_jsx_runtime } from "../_libs/@radix-ui/react-alert-dialog+[...].mjs";
 import { C as useRouter } from "../_libs/@tanstack/react-router+[...].mjs";
-import { O as ArrowRight } from "../_libs/lucide-react.mjs";
+import { k as ArrowRight } from "../_libs/lucide-react.mjs";
 //#region node_modules/.nitro/vite/services/ssr/assets/BackButton-Ba57ObJ6.js
 var import_jsx_runtime = require_jsx_runtime();
 function BackButton() {

@@ -9,23 +9,15 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode, Suspense, lazy } from "react";
-
+import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CartProvider } from "@/lib/cart";
 import { WhatsAppFloat } from "@/components/WhatsAppFloat";
-
-// Loaded lazily: react-loader-spinner crashes Node SSR at import time,
-// so it must only ever load in the browser.
-const Loader = lazy(() => import("@/components/Loader"));
+import Loader from "@/components/Loader";
 
 function RoutePending() {
-  return (
-    <Suspense fallback={null}>
-      <Loader />
-    </Suspense>
-  );
+  return <Loader />;
 }
 import { getActiveCategories, type Category } from "@/lib/catalog";
 import { Navbar } from "@/components/Navbar";
