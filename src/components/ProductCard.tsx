@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Minus, Plus, ShoppingCart } from "lucide-react";
 // import { toast } from "react-hot-toast";
 import { toast } from "react-hot-toast";
+import type { CSSProperties } from "react";
 
 
 
@@ -9,12 +10,15 @@ import { site } from "@/config/site";
 import type { Product } from "@/lib/catalog";
 import { useCart } from "@/lib/cart";
 
-export function ProductCard({ product, hasOptions = false }: { product: Product; hasOptions?: boolean }) {
+export function ProductCard({ product, hasOptions = false, delay = 0 }: { product: Product; hasOptions?: boolean; delay?: number }) {
   const { qtyOf, add, increase, decrease } = useCart();
   const qty = qtyOf(product.id);
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl bg-card shadow-soft transition-shadow hover:shadow-card">
+    <div
+      className="anim-rise flex flex-col overflow-hidden rounded-2xl bg-card shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card"
+      style={{ "--anim-delay": `${delay}ms` } as CSSProperties}
+    >
       <Link to="/product/$productId" params={{ productId: product.id }} className="relative block">
         <div className="grid aspect-square place-items-center overflow-hidden bg-muted text-5xl sm:text-6xl">
           {product.image_url ? (
@@ -97,8 +101,8 @@ export function ProductGrid({
 }) {
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-      {products.map((p) => (
-        <ProductCard key={p.id} product={p} hasOptions={optionFlags[p.id] ?? false} />
+      {products.map((p, i) => (
+        <ProductCard key={p.id} product={p} hasOptions={optionFlags[p.id] ?? false} delay={Math.min(i, 7) * 45} />
       ))}
     </div>
   );

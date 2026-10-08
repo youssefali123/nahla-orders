@@ -1,6 +1,9 @@
 import { createFileRoute, getRouteApi, Link, useRouter } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
+import type { CSSProperties } from "react";
+import { useEffect, useState } from "react";
 import { BannerCarousel, type ResolvedBanner } from "@/components/BannerCarousel";
+import { HomeLoadingScreen } from "@/components/HomeLoadingScreen";
 import { ProductGrid } from "@/components/ProductCard";
 import {
   getActiveBanners,
@@ -70,6 +73,7 @@ export const Route = createFileRoute("/")({
     }
   },
   component: Index,
+  pendingComponent: HomeLoadingScreen,
 });
 
 function Index() {
@@ -77,6 +81,31 @@ function Index() {
   const categories = rootApi.useLoaderData();
   const router = useRouter();
   const firstCategory = categories.find((c) => c.type !== "custom_order");
+
+  // Branded splash: once per session on first home entry (guaranteed visible),
+  // plus the route pendingComponent covers slow data loads afterwards.
+  const [splash, setSplash] = useState(false);
+  useEffect(() => {
+    try {
+      if (!sessionStorage.getItem("nahla-home-splash")) {
+        setSplash(true);
+        const timer = setTimeout(() => {
+          try {
+            sessionStorage.setItem("nahla-home-splash", "1");
+          } catch {
+            /* ignore */
+          }
+          setSplash(false);
+        }, 1500);
+        return () => clearTimeout(timer);
+      }
+    } catch {
+      /* storage unavailable — skip splash */
+    }
+    return undefined;
+  }, []);
+
+  if (splash) return <HomeLoadingScreen />;
 
   if (error) {
     return (
@@ -120,13 +149,14 @@ function Index() {
               </>
             );
             const className =
-              "flex flex-col items-center gap-2 rounded-2xl bg-card p-3 text-center shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-card";
+              "anim-rise flex flex-col items-center gap-2 rounded-2xl bg-card p-3 text-center shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card";
+            const animStyle = { "--anim-delay": `${Math.min(i, 4) * 60}ms` } as CSSProperties;
             return c.type === "custom_order" ? (
-              <Link key={c.id} to="/custom-order" className={className}>
+              <Link key={c.id} to="/custom-order" className={className} style={animStyle}>
                 {tile}
               </Link>
             ) : (
-              <Link key={c.id} to="/category/$categoryId" params={{ categoryId: c.id }} className={className}>
+              <Link key={c.id} to="/category/$categoryId" params={{ categoryId: c.id }} className={className} style={animStyle}>
                 {tile}
               </Link>
             );

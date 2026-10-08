@@ -23,6 +23,7 @@ import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as AdminProductEditorRouteImport } from './routes/admin.product-editor'
 import { Route as AdminProductsRouteImport } from './routes/admin.products'
 import { Route as AdminSubcategoriesRouteImport } from './routes/admin.subcategories'
+import { Route as AdminZonesRouteImport } from './routes/admin.zones'
 import { Route as ProductProductIdRouteImport } from './routes/product.$productId'
 import { Route as CategoryCategoryIdIndexRouteImport } from './routes/category.$categoryId.index'
 import { Route as CategoryCategoryIdSubIdRouteImport } from './routes/category.$categoryId.$subId'
@@ -97,6 +98,11 @@ const AdminSubcategoriesRoute = AdminSubcategoriesRouteImport.update({
   path: '/admin/subcategories',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminZonesRoute = AdminZonesRouteImport.update({
+  id: '/admin/zones',
+  path: '/admin/zones',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductProductIdRoute = ProductProductIdRouteImport.update({
   id: '/product/$productId',
   path: '/product/$productId',
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/admin/product-editor': typeof AdminProductEditorRoute
   '/admin/products': typeof AdminProductsRoute
   '/admin/subcategories': typeof AdminSubcategoriesRoute
+  '/admin/zones': typeof AdminZonesRoute
   '/product/$productId': typeof ProductProductIdRoute
   '/admin/': typeof AdminIndexRoute
   '/category/$categoryId/$subId': typeof CategoryCategoryIdSubIdRoute
@@ -146,6 +153,7 @@ export interface FileRoutesByTo {
   '/admin/product-editor': typeof AdminProductEditorRoute
   '/admin/products': typeof AdminProductsRoute
   '/admin/subcategories': typeof AdminSubcategoriesRoute
+  '/admin/zones': typeof AdminZonesRoute
   '/product/$productId': typeof ProductProductIdRoute
   '/admin': typeof AdminIndexRoute
   '/category/$categoryId/$subId': typeof CategoryCategoryIdSubIdRoute
@@ -166,6 +174,7 @@ export interface FileRoutesById {
   '/admin/product-editor': typeof AdminProductEditorRoute
   '/admin/products': typeof AdminProductsRoute
   '/admin/subcategories': typeof AdminSubcategoriesRoute
+  '/admin/zones': typeof AdminZonesRoute
   '/product/$productId': typeof ProductProductIdRoute
   '/admin/': typeof AdminIndexRoute
   '/category/$categoryId/$subId': typeof CategoryCategoryIdSubIdRoute
@@ -187,6 +196,7 @@ export interface FileRouteTypes {
     | '/admin/product-editor'
     | '/admin/products'
     | '/admin/subcategories'
+    | '/admin/zones'
     | '/product/$productId'
     | '/admin/'
     | '/category/$categoryId/$subId'
@@ -206,6 +216,7 @@ export interface FileRouteTypes {
     | '/admin/product-editor'
     | '/admin/products'
     | '/admin/subcategories'
+    | '/admin/zones'
     | '/product/$productId'
     | '/admin'
     | '/category/$categoryId/$subId'
@@ -225,6 +236,7 @@ export interface FileRouteTypes {
     | '/admin/product-editor'
     | '/admin/products'
     | '/admin/subcategories'
+    | '/admin/zones'
     | '/product/$productId'
     | '/admin/'
     | '/category/$categoryId/$subId'
@@ -245,6 +257,7 @@ export interface RootRouteChildren {
   AdminProductEditorRoute: typeof AdminProductEditorRoute
   AdminProductsRoute: typeof AdminProductsRoute
   AdminSubcategoriesRoute: typeof AdminSubcategoriesRoute
+  AdminZonesRoute: typeof AdminZonesRoute
   ProductProductIdRoute: typeof ProductProductIdRoute
   AdminIndexRoute: typeof AdminIndexRoute
   CategoryCategoryIdSubIdRoute: typeof CategoryCategoryIdSubIdRoute
@@ -351,6 +364,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSubcategoriesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/zones': {
+      id: '/admin/zones'
+      path: '/admin/zones'
+      fullPath: '/admin/zones'
+      preLoaderRoute: typeof AdminZonesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/product/$productId': {
       id: '/product/$productId'
       path: '/product/$productId'
@@ -389,6 +409,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminProductEditorRoute: AdminProductEditorRoute,
   AdminProductsRoute: AdminProductsRoute,
   AdminSubcategoriesRoute: AdminSubcategoriesRoute,
+  AdminZonesRoute: AdminZonesRoute,
   ProductProductIdRoute: ProductProductIdRoute,
   AdminIndexRoute: AdminIndexRoute,
   CategoryCategoryIdSubIdRoute: CategoryCategoryIdSubIdRoute,

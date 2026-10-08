@@ -52,6 +52,7 @@ function CartPage() {
 
   const total = items.reduce((n, i) => (isUnavailable(i, live) ? n : n + liveUnitPrice(i, live) * i.qty), 0);
   const orderable = items.some((i) => !isUnavailable(i, live));
+  const hasCustomOrder = items.some((i) => !!i.note);
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 px-3 pt-4">
@@ -160,11 +161,16 @@ function CartPage() {
 
       <div className="sticky bottom-3 space-y-3 rounded-2xl bg-card p-4 shadow-card">
         <div className="flex items-center justify-between text-base font-extrabold">
-          <span>إجمالي الطلب</span>
+          <span>إجمالي الطلب{hasCustomOrder ? " (بدون الطلب المخصص)" : ""}</span>
           <span className="text-primary-dark">
             {total} {site.currency}
           </span>
         </div>
+        {hasCustomOrder && (
+          <p className="rounded-xl bg-accent/20 p-2.5 text-center text-xs font-bold text-foreground">
+            ✍️ سعر الطلب الخاص يتم تحديده لاحقًا
+          </p>
+        )}
         {orderable ? (
           <Link
             to="/checkout"

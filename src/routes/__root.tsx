@@ -9,11 +9,24 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, type ReactNode, Suspense, lazy } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CartProvider } from "@/lib/cart";
+import { WhatsAppFloat } from "@/components/WhatsAppFloat";
+
+// Loaded lazily: react-loader-spinner crashes Node SSR at import time,
+// so it must only ever load in the browser.
+const Loader = lazy(() => import("@/components/Loader"));
+
+function RoutePending() {
+  return (
+    <Suspense fallback={null}>
+      <Loader />
+    </Suspense>
+  );
+}
 import { getActiveCategories, type Category } from "@/lib/catalog";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -99,6 +112,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   }),
   shellComponent: RootShell,
   component: RootComponent,
+  pendingComponent: RoutePending,
   loader: async (): Promise<Category[]> => {
     try {
       return await getActiveCategories();
@@ -136,12 +150,13 @@ function RootComponent() {
       <CartProvider>
         <div className="flex min-h-screen flex-col">
           {!isAdmin && <Navbar categories={categories} />}
-          <main className="flex-1 pb-6">
+          <main key={pathname} className="anim-page flex-1 pb-6">
             {/* Required: nested routes render here. */}
             <Outlet />
           </main>
           {!isAdmin && <Footer />}
         </div>
+        {!isAdmin && <WhatsAppFloat />}
         <Toaster position="top-center" />
       </CartProvider>
     </QueryClientProvider>

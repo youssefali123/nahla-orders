@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Menu, Search, ShoppingCart, X } from "lucide-react";
 import { useState } from "react";
+import logoIcon from "@/assets/favicon.ico";
 import type { Category } from "@/lib/catalog";
 import { site } from "@/config/site";
 import { useCart } from "@/lib/cart";
@@ -32,7 +33,7 @@ export function Navbar({ categories }: { categories: Category[] }) {
         </button>
 
         <Link to="/" className="flex min-w-0 shrink-0 items-center gap-2">
-          <img src="/favicon.png" alt={site.name} className="h-10 w-10 rounded-xl object-cover" />
+          <img src={logoIcon} alt={site.name} className="h-10 w-10 rounded-xl object-cover" />
           <span className="hidden text-lg font-extrabold text-primary-dark sm:inline">{site.name}</span>
         </Link>
 

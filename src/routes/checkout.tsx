@@ -1,11 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 import { BackButton } from "@/components/BackButton";
 import { site } from "@/config/site";
 import { useCart, useLiveProducts, type CartItem, type SelectedOption } from "@/lib/cart";
-import { getProduct } from "@/lib/catalog";
-import { buildOrderMessage, type CustomerInfo } from "@/lib/whatsapp";
+import { getActiveZones, getCategory, getProduct, type DeliveryZone } from "@/lib/catalog";
+import { buildOrderMessage, type CustomerInfo, type OrderLine } from "@/lib/whatsapp";
 import sendOrderMessage from "@/services/send_order";
 
 export const Route = createFileRoute("/checkout")({
@@ -22,13 +22,68 @@ export const Route = createFileRoute("/checkout")({
 
 type Errors = Partial<Record<keyof CustomerInfo, string>>;
 
+const CUSTOMER_STORAGE_KEY = "nahla-customer-v1";
+
+function loadStoredCustomer(): CustomerInfo & { zoneId?: string } {
+  const empty = { name: "", phone: "", address: "" };
+  if (typeof window === "undefined") return empty;
+  try {
+    const raw = window.localStorage.getItem(CUSTOMER_STORAGE_KEY);
+    if (!raw) return empty;
+    const parsed = JSON.parse(raw) as Partial<CustomerInfo & { zoneId: string }>;
+    return {
+      name: typeof parsed.name === "string" ? parsed.name : "",
+      phone: typeof parsed.phone === "string" ? parsed.phone : "",
+      address: typeof parsed.address === "string" ? parsed.address : "",
+      ...(typeof parsed.zoneId === "string" ? { zoneId: parsed.zoneId } : {}),
+    };
+  } catch {
+    return empty;
+  }
+}
+
 function CheckoutPage() {
   const { items, clear } = useCart();
   const { live } = useLiveProducts();
   const navigate = useNavigate();
-  const [form, setForm] = useState<CustomerInfo>({ name: "", phone: "", address: "" });
+  const [form, setForm] = useState<CustomerInfo>(loadStoredCustomer);
   const [errors, setErrors] = useState<Errors>({});
   const [sending, setSending] = useState(false);
+  const [zones, setZones] = useState<DeliveryZone[] | null>(null);
+  const [zonesFailed, setZonesFailed] = useState(false);
+  const [zoneId, setZoneId] = useState<string | null>(() => loadStoredCustomer().zoneId ?? null);
+
+  // Persist customer info + zone choice on every edit so checkout auto-fills next time.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CUSTOMER_STORAGE_KEY, JSON.stringify({ ...form, zoneId }));
+    } catch {
+      /* storage unavailable — checkout still works for this session */
+    }
+  }, [form, zoneId]);
+
+  // Delivery zones load client-side (public active-only read).
+  useEffect(() => {
+    let cancelled = false;
+    getActiveZones().then(
+      (list) => {
+        if (cancelled) return;
+        setZones(list);
+        setZonesFailed(false);
+        setZoneId((current) => (current && list.some((z) => z.id === current) ? current : (list[0]?.id ?? null)));
+      },
+      () => {
+        if (!cancelled) setZonesFailed(true);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedZone = zones?.find((z) => z.id === zoneId) ?? zones?.[0] ?? null;
+  const deliveryFee = selectedZone ? Number(selectedZone.fee) : 0;
+  const zoneList = zones ?? [];
 
   // Reconcile with the live catalog: drop deleted/inactive products and use
   // current prices. While the lookup is in flight, fall back to stored values.
@@ -38,6 +93,9 @@ function CheckoutPage() {
   const unitOf = (item: CartItem, selections: SelectedOption[] = item.selectedOptions ?? []) =>
     baseOf(item) + selections.reduce((n, s) => n + s.priceDelta, 0);
   const total = orderable.reduce((n, i) => (i.note ? n : n + unitOf(i) * i.qty), 0);
+  const grandTotal = total + (orderable.length > 0 ? deliveryFee : 0);
+  const zonesReady = zones !== null;
+  const noZones = zonesReady && zones.length === 0;
 
   if (items.length === 0) {
     return (
@@ -97,6 +155,10 @@ function CheckoutPage() {
       toast.error("مفيش منتجات متاحة للطلب حالياً");
       return;
     }
+    if (noZones) {
+      toast.error("التوصيل غير متاح حالياً، حاول لاحقًا");
+      return;
+    }
     if (!validate()) {
       toast.error("فضلاً راجع البيانات الناقصة");
       return;
@@ -139,11 +201,50 @@ function CheckoutPage() {
         setSending(false);
         return;
       }
+      // Group the message by catalog category (custom notes trail last).
+      const productIds = [...new Set(priced.filter((i) => !i.note).map((i) => i.id))];
+      const productRows = new Map<string, NonNullable<Awaited<ReturnType<typeof getProduct>>>>();
+      await Promise.all(
+        productIds.map(async (id) => {
+          const row = trees.get(id) ?? (await getProduct(id));
+          if (row) productRows.set(id, row);
+        }),
+      );
+      const categoryRows = new Map<string, NonNullable<Awaited<ReturnType<typeof getCategory>>>>();
+      await Promise.all(
+        [...new Set([...productRows.values()].map((p) => p.category_id))].map(async (cid) => {
+          const cat = await getCategory(cid);
+          if (cat) categoryRows.set(cid, cat);
+        }),
+      );
+      const grouped: OrderLine[] = priced.map((item) => {
+        if (item.note) return { ...item, categoryName: "", categoryOrder: 9999 };
+        const row = productRows.get(item.id);
+        const cat = row ? categoryRows.get(row.category_id) : undefined;
+        return { ...item, categoryName: cat?.name ?? "أخرى", categoryOrder: cat?.sort_order ?? 998 };
+      });
+      grouped.sort(
+        (a, b) => (a.categoryOrder ?? 999) - (b.categoryOrder ?? 999) || a.name.localeCompare(b.name, "ar"),
+      );
       const liveTotal = priced.reduce(
         (n, i) => (i.note ? n : n + (i.price + (i.selectedOptions ?? []).reduce((m, s) => m + s.priceDelta, 0)) * i.qty),
         0,
       );
-      const message = buildOrderMessage(priced, form, liveTotal);
+      // Never trust stored delivery fees: re-read live zones.
+      const liveZones = await getActiveZones();
+      const liveZone = liveZones.find((z) => z.id === zoneId) ?? liveZones[0] ?? null;
+      if (!liveZone && priced.length > 0) {
+        toast.error("التوصيل غير متاح حالياً، حاول تاني");
+        setSending(false);
+        return;
+      }
+      const liveFee = liveZone ? Number(liveZone.fee) : 0;
+      const liveGrandTotal = liveTotal + (priced.length > 0 ? liveFee : 0);
+      const message = buildOrderMessage(grouped, form, liveTotal, {
+        zoneName: liveZone?.name ?? "",
+        fee: liveFee,
+        grandTotal: liveGrandTotal,
+      });
       const result = await sendOrderMessage(message);
       if (!result.ok) {
         toast.error(result.error || "تعذر إرسال الطلب، حاول تاني");
@@ -215,6 +316,70 @@ function CheckoutPage() {
         </div>
 
         <div className="space-y-2 rounded-2xl bg-card p-4 shadow-soft">
+          <h2 className="font-extrabold">منطقة التوصيل</h2>
+          {zones === null && !zonesFailed ? (
+            <div className="space-y-2" aria-busy="true" aria-label="جاري تحميل مناطق التوصيل">
+              <div className="h-12 animate-pulse rounded-xl bg-muted" />
+              <div className="h-12 animate-pulse rounded-xl bg-muted" />
+            </div>
+          ) : zonesFailed ? (
+            <div className="rounded-xl bg-muted p-4 text-center">
+              <p className="text-sm font-bold">حصل خطأ، حاول تاني.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setZonesFailed(false);
+                  setZones(null);
+                  getActiveZones().then(
+                    (list) => {
+                      setZones(list);
+                      setZoneId((current) => (current && list.some((z) => z.id === current) ? current : (list[0]?.id ?? null)));
+                    },
+                    () => setZonesFailed(true),
+                  );
+                }}
+                className="mt-2 inline-flex h-10 items-center justify-center rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground"
+              >
+                حاول تاني
+              </button>
+            </div>
+          ) : zoneList.length === 0 ? (
+            <p className="rounded-xl bg-muted p-4 text-center text-sm font-bold text-muted-foreground">
+              التوصيل غير متاح حالياً. حاول لاحقًا.
+            </p>
+          ) : (
+            <div role="radiogroup" aria-label="منطقة التوصيل" className="space-y-2">
+              {zoneList.map((zone) => {
+                const fee = Number(zone.fee);
+                const checked = selectedZone?.id === zone.id;
+                return (
+                  <label
+                    key={zone.id}
+                    className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-3 text-sm transition-colors ${
+                      checked ? "border-primary bg-primary/10" : "border-border bg-muted"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 font-bold">
+                      <input
+                        type="radio"
+                        name="delivery-zone"
+                        checked={checked}
+                        onChange={() => setZoneId(zone.id)}
+                        className="h-4 w-4 accent-green-700"
+                      />
+                      {zone.name}
+                    </span>
+                    <span className="shrink-0 font-extrabold text-primary-dark">
+                      {fee === 0 ? "توصيل مجاني 🎉" : `${fee} ${site.currency}`}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-2 rounded-2xl bg-card p-4 shadow-soft">
           <h2 className="font-extrabold">ملخص الطلب</h2>
           <ul className="divide-y divide-border">
             {orderable.map((item) => (
@@ -243,16 +408,35 @@ function CheckoutPage() {
             ))}
           </ul>
           <div className="flex items-center justify-between border-t border-border pt-3 text-base font-extrabold">
-            <span>الإجمالي</span>
+            <span>الإجمالي{orderable.some((i) => !!i.note) ? " (بدون الطلب المخصص)" : ""}</span>
             <span className="text-primary-dark">
               {total} {site.currency}
             </span>
           </div>
+          <div className="flex items-center justify-between text-sm font-bold">
+            <span>
+              التوصيل{selectedZone ? ` (${selectedZone.name})` : zonesReady ? "" : " (…)"}
+            </span>
+            <span className="text-primary-dark">
+              {!zonesReady ? "…" : selectedZone && deliveryFee === 0 ? "مجاني 🎉" : `${deliveryFee} ${site.currency}`}
+            </span>
+          </div>
+          <div className="flex items-center justify-between border-t border-border pt-3 text-lg font-extrabold">
+            <span>الإجمالي الكلي</span>
+            <span className="text-primary-dark">
+              {grandTotal} {site.currency}
+            </span>
+          </div>
+          {orderable.some((i) => !!i.note) && (
+            <p className="rounded-xl bg-accent/20 p-2.5 text-center text-xs font-bold">
+              ✍️ سعر الطلب الخاص يتم تحديده لاحقًا
+            </p>
+          )}
         </div>
 
         <button
           type="submit"
-          disabled={sending}
+          disabled={sending || noZones}
           className="h-14 w-full rounded-xl bg-primary py-4 text-lg font-extrabold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
         >
           {sending ? "جاري إرسال الطلب..." : "تأكيد الطلب"}

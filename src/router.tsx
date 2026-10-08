@@ -13,6 +13,10 @@ export const getRouter = () => {
     // reuses cached data instead of refetching Supabase on every navigation.
     defaultStaleTime: 60_000,
     defaultPreloadStaleTime: 60_000,
+    // Show loading feedback fast (200ms) and keep it briefly (300ms min)
+    // so first-time navigation never looks stuck on the old page.
+    defaultPendingMs: 200,
+    defaultPendingMinMs: 300,
   });
 
   return router;

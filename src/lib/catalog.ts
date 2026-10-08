@@ -173,6 +173,28 @@ export async function getActiveBanners(): Promise<Banner[]> {
   return (data ?? []) as Banner[];
 }
 
+export type DeliveryZone = {
+  id: string;
+  name: string;
+  fee: number;
+  sort_order: number;
+  is_active: boolean;
+};
+
+/** Active delivery zones ordered for display (empty array is valid). */
+export async function getActiveZones(): Promise<DeliveryZone[]> {
+  const { data, error } = await supabase
+    .from("delivery_zones")
+    .select("*")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+  if (error) throw toCatalogError("تحميل مناطق التوصيل", error);
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+    ...(row as unknown as DeliveryZone),
+    fee: Number((row as { fee: string | number }).fee),
+  }));
+}
+
 /** Case-insensitive substring search over active product names (blank → []). */
 export async function searchProducts(query: string): Promise<Product[]> {
   const q = query.trim();

@@ -3,6 +3,7 @@ import type {
   Banner,
   Category,
   ConfiguredProduct,
+  DeliveryZone,
   OptionGroup,
   Product,
   ProductOption,
@@ -339,6 +340,39 @@ export async function saveBanner(id: string | null, input: BannerInput): Promise
 export async function deleteBanner(id: string): Promise<void> {
   const { error } = await getSessionClient().from("banners").delete().eq("id", id);
   if (error) throw toAdminError("تعذر حذف البنر.", error);
+}
+
+export async function listZonesAdmin(): Promise<DeliveryZone[]> {
+  const { data, error } = await getSessionClient()
+    .from("delivery_zones")
+    .select("*")
+    .order("sort_order", { ascending: true });
+  if (error) throw toAdminError("تعذر تحميل مناطق التوصيل.", error);
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+    ...(row as unknown as DeliveryZone),
+    fee: Number((row as { fee: string | number }).fee),
+  }));
+}
+
+export type ZoneInput = {
+  name: string;
+  fee: number;
+  sort_order: number;
+  is_active: boolean;
+};
+
+export async function saveZone(id: string | null, input: ZoneInput): Promise<void> {
+  const client = getSessionClient();
+  const { error } =
+    id === null
+      ? await client.from("delivery_zones").insert(input)
+      : await client.from("delivery_zones").update(input).eq("id", id);
+  if (error) throw toAdminError("تعذر حفظ منطقة التوصيل.", error);
+}
+
+export async function deleteZone(id: string): Promise<void> {
+  const { error } = await getSessionClient().from("delivery_zones").delete().eq("id", id);
+  if (error) throw toAdminError("تعذر حذف منطقة التوصيل.", error);
 }
 
 /** Upload-then-save: returns the public URL; throws on failure (caller must not save without it). */
