@@ -8,5 +8,5 @@ export const site = {
   slogan: "هنوصلك بسرعة النحلة",
   currency: "جنيه",
   whatsappNumber:
-    (import.meta.env["VITE_WHATSAPP_NUMBER"] as string | undefined) ?? "201000000000",
+    (import.meta.env["VITE_WHATSAPP_NUMBER"] as string | undefined) ?? "201025007990",
 } as const;
