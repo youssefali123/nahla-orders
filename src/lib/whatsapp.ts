@@ -13,9 +13,16 @@ export type DeliverySummary = {
 /** Order line optionally tagged with its catalog category for grouping. */
 export type OrderLine = CartItem & { categoryName?: string; categoryOrder?: number };
 
-export function buildOrderMessage(items: OrderLine[], customer: CustomerInfo, total: number, delivery?: DeliverySummary) {
+export function buildOrderMessage(
+  items: OrderLine[],
+  customer: CustomerInfo,
+  total: number,
+  delivery?: DeliverySummary,
+  orderNo?: string,
+) {
   const lines: string[] = [];
   lines.push(`🐝 طلب جديد من ${site.name}`, "");
+  if (orderNo) lines.push(`🔢 رقم الطلب:`, `${orderNo}`, "");
   lines.push("👤 اسم العميل:", customer.name, "");
   lines.push("📱 رقم الهاتف:", customer.phone, "");
   lines.push("📍 العنوان:", customer.address, "");

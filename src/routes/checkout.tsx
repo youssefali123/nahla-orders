@@ -253,12 +253,13 @@ function CheckoutPage() {
       const liveServiceFee = priced.length > 0 ? round2((liveTotal * livePct) / 100) : 0;
       const liveGrandTotal = round2(liveTotal + (priced.length > 0 ? liveFee : 0) + liveServiceFee);
       // Recompute grand total with the service fee included.
+      const orderNo = String(Math.floor(100 + Math.random() * 900));
       const message = buildOrderMessage(priced, form, liveTotal, {
         zoneName: liveZone?.name ?? "",
         fee: liveFee,
         grandTotal: liveGrandTotal,
         service: livePct > 0 ? { percent: livePct, amount: liveServiceFee } : undefined,
-      });
+      }, orderNo);
       const result = await sendOrderMessage(message);
       if (!result.ok) {
         toast.error(result.error || "تعذر إرسال الطلب، حاول تاني");
@@ -266,7 +267,7 @@ function CheckoutPage() {
         return;
       }
       clear();
-      navigate({ to: "/order-success" });
+      navigate({ to: "/order-success", search: { order: orderNo } });
     } catch (error) {
       console.error(error);
       toast.error("تعذر تأكيد الأسعار الحالية، حاول تاني");
@@ -438,9 +439,9 @@ function CheckoutPage() {
           {feePct > 0 && (
             <div className="flex items-center justify-between text-sm font-bold">
               <span>رسوم الخدمة ({feePct}%)</span>
-              <span className="text-primary-dark">
+              {/* <span className="text-primary-dark">
                 {serviceFee} {site.currency}
-              </span>
+              </span> */}
             </div>
           )}
           <div className="flex items-center justify-between border-t border-border pt-3 text-lg font-extrabold">
