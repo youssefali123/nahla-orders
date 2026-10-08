@@ -6,6 +6,7 @@ import {
   ListTree,
   LogOut,
   Menu,
+  Settings,
   Shapes,
   ShoppingBag,
   Truck,
@@ -30,6 +31,7 @@ const NAV: { title: string; items: NavItem[] }[] = [
   },
   { title: "المحتوى", items: [{ to: "/admin/banners", label: "البنرات", icon: Image, matchPrefix: true }] },
   { title: "التوصيل", items: [{ to: "/admin/zones", label: "مناطق التوصيل", icon: Truck, matchPrefix: true }] },
+  { title: "الإعدادات", items: [{ to: "/admin/settings", label: "الإعدادات", icon: Settings }] },
   { title: "الحساب", items: [{ to: "/admin/account", label: "الحساب الشخصي", icon: User }] },
 ];
 

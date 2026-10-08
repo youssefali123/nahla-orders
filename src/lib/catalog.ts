@@ -195,6 +195,19 @@ export async function getActiveZones(): Promise<DeliveryZone[]> {
   }));
 }
 
+/** Service fee percent (key `service_fee_percent`); 0 when unset/invalid. */
+export async function getServiceFeePercent(): Promise<number> {
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "service_fee_percent")
+    .maybeSingle();
+  if (error) throw toCatalogError("تحميل نسبة الخدمة", error);
+  const parsed = Number((data as { value?: string } | null)?.value);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.min(parsed, 100);
+}
+
 /** Case-insensitive substring search over active product names (blank → []). */
 export async function searchProducts(query: string): Promise<Product[]> {
   const q = query.trim();

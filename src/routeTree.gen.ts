@@ -22,6 +22,7 @@ import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as AdminProductEditorRouteImport } from './routes/admin.product-editor'
 import { Route as AdminProductsRouteImport } from './routes/admin.products'
+import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminSubcategoriesRouteImport } from './routes/admin.subcategories'
 import { Route as AdminZonesRouteImport } from './routes/admin.zones'
 import { Route as ProductProductIdRouteImport } from './routes/product.$productId'
@@ -93,6 +94,11 @@ const AdminProductsRoute = AdminProductsRouteImport.update({
   path: '/admin/products',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminSettingsRoute = AdminSettingsRouteImport.update({
+  id: '/admin/settings',
+  path: '/admin/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminSubcategoriesRoute = AdminSubcategoriesRouteImport.update({
   id: '/admin/subcategories',
   path: '/admin/subcategories',
@@ -132,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/admin/login': typeof AdminLoginRoute
   '/admin/product-editor': typeof AdminProductEditorRoute
   '/admin/products': typeof AdminProductsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/subcategories': typeof AdminSubcategoriesRoute
   '/admin/zones': typeof AdminZonesRoute
   '/product/$productId': typeof ProductProductIdRoute
@@ -152,6 +159,7 @@ export interface FileRoutesByTo {
   '/admin/login': typeof AdminLoginRoute
   '/admin/product-editor': typeof AdminProductEditorRoute
   '/admin/products': typeof AdminProductsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/subcategories': typeof AdminSubcategoriesRoute
   '/admin/zones': typeof AdminZonesRoute
   '/product/$productId': typeof ProductProductIdRoute
@@ -173,6 +181,7 @@ export interface FileRoutesById {
   '/admin/login': typeof AdminLoginRoute
   '/admin/product-editor': typeof AdminProductEditorRoute
   '/admin/products': typeof AdminProductsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/subcategories': typeof AdminSubcategoriesRoute
   '/admin/zones': typeof AdminZonesRoute
   '/product/$productId': typeof ProductProductIdRoute
@@ -195,6 +204,7 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/product-editor'
     | '/admin/products'
+    | '/admin/settings'
     | '/admin/subcategories'
     | '/admin/zones'
     | '/product/$productId'
@@ -215,6 +225,7 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/product-editor'
     | '/admin/products'
+    | '/admin/settings'
     | '/admin/subcategories'
     | '/admin/zones'
     | '/product/$productId'
@@ -235,6 +246,7 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/product-editor'
     | '/admin/products'
+    | '/admin/settings'
     | '/admin/subcategories'
     | '/admin/zones'
     | '/product/$productId'
@@ -256,6 +268,7 @@ export interface RootRouteChildren {
   AdminLoginRoute: typeof AdminLoginRoute
   AdminProductEditorRoute: typeof AdminProductEditorRoute
   AdminProductsRoute: typeof AdminProductsRoute
+  AdminSettingsRoute: typeof AdminSettingsRoute
   AdminSubcategoriesRoute: typeof AdminSubcategoriesRoute
   AdminZonesRoute: typeof AdminZonesRoute
   ProductProductIdRoute: typeof ProductProductIdRoute
@@ -357,6 +370,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminProductsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/settings': {
+      id: '/admin/settings'
+      path: '/admin/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/subcategories': {
       id: '/admin/subcategories'
       path: '/admin/subcategories'
@@ -408,6 +428,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminLoginRoute: AdminLoginRoute,
   AdminProductEditorRoute: AdminProductEditorRoute,
   AdminProductsRoute: AdminProductsRoute,
+  AdminSettingsRoute: AdminSettingsRoute,
   AdminSubcategoriesRoute: AdminSubcategoriesRoute,
   AdminZonesRoute: AdminZonesRoute,
   ProductProductIdRoute: ProductProductIdRoute,

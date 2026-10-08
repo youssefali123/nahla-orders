@@ -4,7 +4,7 @@ import { toast } from "react-hot-toast";
 import { BackButton } from "@/components/BackButton";
 import { site } from "@/config/site";
 import { useCart, useLiveProducts, type CartItem, type SelectedOption } from "@/lib/cart";
-import { getActiveZones, getCategory, getProduct, type DeliveryZone } from "@/lib/catalog";
+import { getActiveZones, getCategory, getProduct, getServiceFeePercent, type DeliveryZone } from "@/lib/catalog";
 import { buildOrderMessage, type CustomerInfo, type OrderLine } from "@/lib/whatsapp";
 import sendOrderMessage from "@/services/send_order";
 
@@ -52,6 +52,7 @@ function CheckoutPage() {
   const [zones, setZones] = useState<DeliveryZone[] | null>(null);
   const [zonesFailed, setZonesFailed] = useState(false);
   const [zoneId, setZoneId] = useState<string | null>(() => loadStoredCustomer().zoneId ?? null);
+  const [feePct, setFeePct] = useState(0);
 
   // Persist customer info + zone choice on every edit so checkout auto-fills next time.
   useEffect(() => {
@@ -62,7 +63,7 @@ function CheckoutPage() {
     }
   }, [form, zoneId]);
 
-  // Delivery zones load client-side (public active-only read).
+  // Delivery zones + service fee load client-side (public reads).
   useEffect(() => {
     let cancelled = false;
     getActiveZones().then(
@@ -74,6 +75,14 @@ function CheckoutPage() {
       },
       () => {
         if (!cancelled) setZonesFailed(true);
+      },
+    );
+    getServiceFeePercent().then(
+      (pct) => {
+        if (!cancelled) setFeePct(pct);
+      },
+      () => {
+        if (!cancelled) setFeePct(0);
       },
     );
     return () => {
@@ -93,7 +102,9 @@ function CheckoutPage() {
   const unitOf = (item: CartItem, selections: SelectedOption[] = item.selectedOptions ?? []) =>
     baseOf(item) + selections.reduce((n, s) => n + s.priceDelta, 0);
   const total = orderable.reduce((n, i) => (i.note ? n : n + unitOf(i) * i.qty), 0);
-  const grandTotal = total + (orderable.length > 0 ? deliveryFee : 0);
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const serviceFee = orderable.length > 0 ? round2((total * feePct) / 100) : 0;
+  const grandTotal = round2(total + (orderable.length > 0 ? deliveryFee : 0) + serviceFee);
   const zonesReady = zones !== null;
   const noZones = zonesReady && zones.length === 0;
 
@@ -230,8 +241,8 @@ function CheckoutPage() {
         (n, i) => (i.note ? n : n + (i.price + (i.selectedOptions ?? []).reduce((m, s) => m + s.priceDelta, 0)) * i.qty),
         0,
       );
-      // Never trust stored delivery fees: re-read live zones.
-      const liveZones = await getActiveZones();
+      // Never trust stored delivery fees: re-read live zones + fee percent.
+      const [liveZones, livePct] = await Promise.all([getActiveZones(), getServiceFeePercent()]);
       const liveZone = liveZones.find((z) => z.id === zoneId) ?? liveZones[0] ?? null;
       if (!liveZone && priced.length > 0) {
         toast.error("التوصيل غير متاح حالياً، حاول تاني");
@@ -239,11 +250,14 @@ function CheckoutPage() {
         return;
       }
       const liveFee = liveZone ? Number(liveZone.fee) : 0;
-      const liveGrandTotal = liveTotal + (priced.length > 0 ? liveFee : 0);
-      const message = buildOrderMessage(grouped, form, liveTotal, {
+      const liveServiceFee = priced.length > 0 ? round2((liveTotal * livePct) / 100) : 0;
+      const liveGrandTotal = round2(liveTotal + (priced.length > 0 ? liveFee : 0) + liveServiceFee);
+      // Recompute grand total with the service fee included.
+      const message = buildOrderMessage(priced, form, liveTotal, {
         zoneName: liveZone?.name ?? "",
         fee: liveFee,
         grandTotal: liveGrandTotal,
+        service: livePct > 0 ? { percent: livePct, amount: liveServiceFee } : undefined,
       });
       const result = await sendOrderMessage(message);
       if (!result.ok) {
@@ -421,6 +435,14 @@ function CheckoutPage() {
               {!zonesReady ? "…" : selectedZone && deliveryFee === 0 ? "مجاني 🎉" : `${deliveryFee} ${site.currency}`}
             </span>
           </div>
+          {feePct > 0 && (
+            <div className="flex items-center justify-between text-sm font-bold">
+              <span>رسوم الخدمة ({feePct}%)</span>
+              <span className="text-primary-dark">
+                {serviceFee} {site.currency}
+              </span>
+            </div>
+          )}
           <div className="flex items-center justify-between border-t border-border pt-3 text-lg font-extrabold">
             <span>الإجمالي الكلي</span>
             <span className="text-primary-dark">

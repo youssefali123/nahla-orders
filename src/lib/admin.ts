@@ -375,6 +375,26 @@ export async function deleteZone(id: string): Promise<void> {
   if (error) throw toAdminError("تعذر حذف منطقة التوصيل.", error);
 }
 
+export async function getServiceFeePercentAdmin(): Promise<number> {
+  const { data, error } = await getSessionClient()
+    .from("app_settings")
+    .select("value")
+    .eq("key", "service_fee_percent")
+    .maybeSingle();
+  if (error) throw toAdminError("تعذر تحميل نسبة الخدمة.", error);
+  const parsed = Number((data as { value?: string } | null)?.value);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.min(parsed, 100);
+}
+
+export async function saveServiceFeePercent(percent: number): Promise<void> {
+  if (!(percent >= 0) || percent > 100) throw { message: "النسبة يجب أن تكون بين 0 و 100." };
+  const { error } = await getSessionClient()
+    .from("app_settings")
+    .upsert({ key: "service_fee_percent", value: String(percent) }, { onConflict: "key" });
+  if (error) throw toAdminError("تعذر حفظ نسبة الخدمة.", error);
+}
+
 /** Upload-then-save: returns the public URL; throws on failure (caller must not save without it). */
 export async function uploadImage(prefix: "categories" | "subcategories" | "products" | "banners", file: File): Promise<string> {
   const client = getSessionClient();

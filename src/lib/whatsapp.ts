@@ -3,7 +3,12 @@ import type { CartItem } from "@/lib/cart";
 
 export type CustomerInfo = { name: string; phone: string; address: string };
 
-export type DeliverySummary = { zoneName: string; fee: number; grandTotal: number };
+export type DeliverySummary = {
+  zoneName: string;
+  fee: number;
+  grandTotal: number;
+  service?: { percent: number; amount: number } | undefined;
+};
 
 /** Order line optionally tagged with its catalog category for grouping. */
 export type OrderLine = CartItem & { categoryName?: string; categoryOrder?: number };
@@ -47,6 +52,13 @@ export function buildOrderMessage(items: OrderLine[], customer: CustomerInfo, to
       delivery.fee === 0 ? "توصيل مجاني 🎉" : `${delivery.fee} ${site.currency}`,
       "",
     );
+    if (delivery.service && delivery.service.percent > 0) {
+      lines.push(
+        `🧾 رسوم الخدمة (${delivery.service.percent}%):`,
+        `${delivery.service.amount} ${site.currency}`,
+        "",
+      );
+    }
     lines.push(`💰 الإجمالي الكلي:`, `${delivery.grandTotal} ${site.currency}`, "");
   }
   lines.push(`🟢 ${site.slogan} 🐝`);
