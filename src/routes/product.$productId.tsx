@@ -41,25 +41,38 @@ function ProductPage() {
   const { add } = useCart();
   const [qty, setQty] = useState(1);
   const [picked, setPicked] = useState<Record<string, string[]>>({});
+  const [pickOrder, setPickOrder] = useState<string[]>([]);
   const [triedSubmit, setTriedSubmit] = useState(false);
   const groups = product?.option_groups ?? [];
 
   function toggleOption(group: ConfiguredGroup, optionId: string) {
-    setPicked((prev) => {
-      const current = prev[group.id] ?? [];
-      if (group.type === "single") {
-        return { ...prev, [group.id]: current.includes(optionId) ? [] : [optionId] };
-      }
+    const current = picked[group.id] ?? [];
+    if (group.type === "single") {
       if (current.includes(optionId)) {
-        return { ...prev, [group.id]: current.filter((id) => id !== optionId) };
+        setPicked({ ...picked, [group.id]: [] });
+        setPickOrder((order) => order.filter((id) => id !== optionId));
+      } else {
+        setPicked({ ...picked, [group.id]: [optionId] });
+        setPickOrder((order) => [...order.filter((id) => !current.includes(id)), optionId]);
       }
-      if (group.max_selections !== null && current.length >= group.max_selections) {
-        toast.error(`اختار بحد أقصى ${group.max_selections} من ${group.name}`);
-        return prev;
-      }
-      return { ...prev, [group.id]: [...current, optionId] };
-    });
+      return;
+    }
+    if (current.includes(optionId)) {
+      setPicked({ ...picked, [group.id]: current.filter((id) => id !== optionId) });
+      setPickOrder((order) => order.filter((id) => id !== optionId));
+      return;
+    }
+    if (group.max_selections !== null && current.length >= group.max_selections) {
+      toast.error(`اختار بحد أقصى ${group.max_selections} من ${group.name}`);
+      return;
+    }
+    setPicked({ ...picked, [group.id]: [...current, optionId] });
+    setPickOrder((order) => [...order, optionId]);
   }
+
+  const optionById = new Map(groups.flatMap((g) => g.options.map((o) => [o.id, o] as const)));
+  const displayImage =
+    [...pickOrder].reverse().map((id) => optionById.get(id)?.image_url ?? null).find((url) => !!url) ?? null;
 
   function groupError(group: ConfiguredGroup): string | null {
     if (!triedSubmit || group.min_selections <= 0) return null;
@@ -131,7 +144,9 @@ function ProductPage() {
       </div>
       <div className="overflow-hidden rounded-3xl bg-card shadow-card">
         <div className="grid aspect-square w-full place-items-center overflow-hidden bg-muted text-[7rem] sm:aspect-[16/9]" aria-hidden>
-          {product.image_url ? (
+          {displayImage ? (
+            <img key={displayImage} src={displayImage} alt="" className="anim-page h-full w-full object-cover" />
+          ) : product.image_url ? (
             <img src={product.image_url} alt="" className="h-full w-full object-cover" />
           ) : (
             (product.icon ?? "🐝")
@@ -180,6 +195,15 @@ function ProductPage() {
                             : "bg-card text-foreground shadow-soft hover:bg-card"
                         }`}
                       >
+                        {option.image_url && (
+                          <img
+                            src={option.image_url}
+                            alt=""
+                            loading="lazy"
+                            className="h-6 w-6 shrink-0 rounded-lg object-cover"
+                            aria-hidden
+                          />
+                        )}
                         {option.name}
                         {delta !== 0 && <span className="text-xs opacity-80">{delta > 0 ? `+${delta}` : delta}</span>}
                       </button>

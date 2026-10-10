@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { GripVertical, ImagePlus, Pencil, Plus, Trash2, X } from "lucide-react";
 // import { toast } from "react-hot-toast";
 import { toast } from "react-hot-toast";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import {
   deleteOptionGroup,
   saveOption,
   saveOptionGroup,
+  uploadImage,
   type AdminError,
 } from "@/lib/admin";
 import type { ConfiguredGroup, ProductOption } from "@/lib/catalog";
@@ -55,10 +56,16 @@ function OptionRow({
 }) {
   const [name, setName] = useState(option.name);
   const [delta, setDelta] = useState(Number(option.price_delta));
+  const [image, setImage] = useState<string | null>(option.image_url ?? null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [active, setActive] = useState(option.is_active);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const dirty = name.trim() !== option.name || delta !== Number(option.price_delta) || active !== option.is_active;
+  const dirty =
+    name.trim() !== option.name ||
+    delta !== Number(option.price_delta) ||
+    active !== option.is_active ||
+    (image ?? null) !== (option.image_url ?? null);
 
   async function save() {
     if (!name.trim()) {
@@ -70,6 +77,7 @@ function OptionRow({
       await saveOption(option.option_group_id, option.id, {
         name: name.trim(),
         price_delta: delta,
+        image_url: image,
         sort_order: option.sort_order,
         is_active: active,
       });
@@ -85,6 +93,55 @@ function OptionRow({
   return (
     <div className="flex items-center gap-2 rounded-xl bg-card p-2 shadow-soft">
       <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+      <span className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-muted-foreground">
+        <label
+          className="grid h-full w-full cursor-pointer place-items-center transition-colors hover:border-primary"
+          aria-label={image ? `تغيير صورة ${option.name}` : `رفع صورة لـ ${option.name}`}
+          title={image ? "تغيير الصورة" : "رفع صورة للاختيار"}
+        >
+          {uploadingImage ? (
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-primary" aria-hidden />
+          ) : image ? (
+            <img src={image} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <ImagePlus className="h-4 w-4" aria-hidden />
+          )}
+          <input
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            disabled={uploadingImage}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (!file) return;
+              setUploadingImage(true);
+              try {
+                setImage(await uploadImage("options", file));
+                toast.success("تم رفع الصورة — اضغط حفظ لتثبيتها");
+              } catch (err) {
+                toast.error(errMessage(err));
+              } finally {
+                setUploadingImage(false);
+              }
+            }}
+          />
+        </label>
+        {image && (
+          <button
+            type="button"
+            aria-label={`مسح صورة ${option.name}`}
+            title="مسح الصورة"
+            onClick={() => {
+              setImage(null);
+              toast.success("اتشالت الصورة من المعاينة — دوس حفظ للتثبيت");
+            }}
+            className="absolute -left-1 -top-1 grid h-6 w-6 place-items-center rounded-full bg-destructive text-destructive-foreground shadow transition-transform hover:scale-110"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        )}
+      </span>
       <Input
         value={name}
         onChange={(e) => setName(e.target.value)}

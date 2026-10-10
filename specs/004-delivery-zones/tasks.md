@@ -35,13 +35,13 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Apply schema migration to `nahla_app`: table `delivery_zones` (UUID PK `gen_random_uuid()`; `name` TEXT NOT NULL UNIQUE with non-empty CHECK `length(name) > 0`; `fee NUMERIC(10,2)` NOT NULL DEFAULT 0 CHECK `fee >= 0`; `sort_order` NOT NULL DEFAULT 0; `is_active` NOT NULL DEFAULT true; stamps NOT NULL DEFAULT `now()`) — no seeds
-- [ ] T004 Apply trigger migration: attach existing `handle_updated_at()` BEFORE UPDATE to `delivery_zones` (no new function)
-- [ ] T005 Apply index migration: `(is_active, sort_order)` composite on `delivery_zones`
-- [ ] T006 Apply RLS migration: enable RLS; anon+authenticated `SELECT` restricted to `is_active = true`; authenticated `ALL` gated on existing `is_admin()`; no public writes
+- [X] T003 Apply schema migration to `nahla_app`: table `delivery_zones` (UUID PK `gen_random_uuid()`; `name` TEXT NOT NULL UNIQUE with non-empty CHECK `length(name) > 0`; `fee NUMERIC(10,2)` NOT NULL DEFAULT 0 CHECK `fee >= 0`; `sort_order` NOT NULL DEFAULT 0; `is_active` NOT NULL DEFAULT true; stamps NOT NULL DEFAULT `now()`) — no seeds
+- [X] T004 Apply trigger migration: attach existing `handle_updated_at()` BEFORE UPDATE to `delivery_zones` (no new function)
+- [X] T005 Apply index migration: `(is_active, sort_order)` composite on `delivery_zones`
+- [X] T006 Apply RLS migration: enable RLS; anon+authenticated `SELECT` restricted to `is_active = true`; authenticated `ALL` gated on existing `is_admin()`; no public writes
 - [X] T007 Add `DeliveryZone` type plus `getActiveZones()` (active ordered by `sort_order`, empty array valid) in `src/lib/catalog.ts`
 - [X] T008 [P] Add `listZonesAdmin`/`saveZone`/`deleteZone` (input `{ name trimmed non-empty, fee >= 0, sort_order, is_active }`, duplicate-name and invalid-fee Arabic messages) in `src/lib/admin.ts`
-- [ ] T009 Verify foundation: table exists with constraints/index/trigger/RLS; empty table handled; existing-table row counts unchanged; temp zone created and deleted with zero residue
+- [X] T009 Verify foundation: table exists with constraints/index/trigger/RLS; empty table handled; existing-table row counts unchanged; temp zone created and deleted with zero residue
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -80,8 +80,8 @@
 
 **Independent Test**: Anon reads hide inactive zones, all anon writes rejected, non-managers gain nothing, invalid fees rejected, advisors re-checked
 
-- [ ] T015 [US3] Run the full RLS matrix on temp rows (anon allow/deny on `delivery_zones`, inactive hidden, signed-in non-manager rejected, negative/duplicate fees rejected) and re-check security/performance advisors with findings fixed
-- [ ] T016 [US3] Verify US3: zero residue by counts, existing pages and admin screens render unchanged except checkout totals and the new screen, customer address flow untouched
+- [X] T015 [US3] Run the full RLS matrix on temp rows (anon allow/deny on `delivery_zones`, inactive hidden, signed-in non-manager rejected, negative/duplicate fees rejected) and re-check security/performance advisors with findings fixed
+- [X] T016 [US3] Verify US3: zero residue by counts, existing pages and admin screens render unchanged except checkout totals and the new screen, customer address flow untouched
 
 **Checkpoint**: Backend and security posture proven with nothing left behind
 
@@ -93,7 +93,7 @@
 
 - [ ] T017 Run the complete `quickstart.md` validation end-to-end (empty-valid table, temp lifecycle, two-fee proofs, security, gates) and fix any deviations
 - [X] T018 Confirm zero residue (temp counts match pre-run), `npx tsc --noEmit` passes, no secrets in frontend code, `admin_profiles` holds no new rows
-- [ ] T019 Write the final implementation report (table, constraints, RLS, indexes, data access, checkout/admin integration, pricing proofs, zero-residue confirmation, remaining issues/manual actions)
+- [X] T019 Write the final implementation report (table, constraints, RLS, indexes, data access, checkout/admin integration, pricing proofs, zero-residue confirmation, remaining issues/manual actions)
 
 ---
 

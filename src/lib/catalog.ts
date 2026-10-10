@@ -195,8 +195,7 @@ export async function getActiveZones(): Promise<DeliveryZone[]> {
   }));
 }
 
-/** Service fee percent (key `service_fee_percent`); 0 when unset/invalid. */
-export async function getServiceFeePercent(): Promise<number> {
+/** Service fee percent (key `service_fee_percent`); 0 when unset/invalid. */export async function getServiceFeePercent(): Promise<number> {
   const { data, error } = await supabase
     .from("app_settings")
     .select("value")
@@ -206,6 +205,19 @@ export async function getServiceFeePercent(): Promise<number> {
   const parsed = Number((data as { value?: string } | null)?.value);
   if (!Number.isFinite(parsed) || parsed < 0) return 0;
   return Math.min(parsed, 100);
+}
+
+/**
+ * Reserves the next sequential order number for today's business day
+ * (resets daily at 09:00 Cairo time). Atomic server-side; throws when
+ * the counter is unreachable so the order is never sent numberless.
+ */
+export async function nextOrderNumber(): Promise<number> {
+  const { data, error } = await supabase.rpc("next_order_number");
+  if (error) throw toCatalogError("إنشاء رقم الطلب", error);
+  const n = Number(data);
+  if (!Number.isInteger(n) || n <= 0) throw toCatalogError("إنشاء رقم الطلب", data);
+  return n;
 }
 
 /** Case-insensitive substring search over active product names (blank → []). */
@@ -242,6 +254,7 @@ export type ProductOption = {
   option_group_id: string;
   name: string;
   price_delta: number;
+  image_url: string | null;
   sort_order: number;
   is_active: boolean;
 };

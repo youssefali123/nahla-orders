@@ -2,13 +2,14 @@ import { Link } from "@tanstack/react-router";
 import { MessageCircle } from "lucide-react";
 import { site } from "@/config/site";
 import { whatsappContactUrl } from "@/lib/whatsapp";
+import logoIcon from "@/assets/favicon.ico";
 
 export function Footer() {
   return (
     <footer className="mt-10 bg-primary-dark text-primary-foreground">
       <div className="mx-auto grid max-w-5xl gap-6 px-4 py-8 sm:grid-cols-2">
         <div className="flex items-center gap-3">
-          <img src="/favicon.png" alt={site.name} className="h-14 w-14 rounded-2xl object-cover" />
+          <img src={logoIcon} alt={site.name} className="h-14 w-14 rounded-2xl object-cover" />
           <div className="min-w-0">
             <p className="text-xl font-extrabold">{site.name}</p>
             <p className="text-sm opacity-90">{site.slogan} 🐝</p>

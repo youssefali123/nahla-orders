@@ -295,6 +295,7 @@ export async function deleteOptionGroup(id: string): Promise<void> {
 export type ProductOptionInput = {
   name: string;
   price_delta: number;
+  image_url?: string | null;
   sort_order: number;
   is_active: boolean;
 };
@@ -396,7 +397,7 @@ export async function saveServiceFeePercent(percent: number): Promise<void> {
 }
 
 /** Upload-then-save: returns the public URL; throws on failure (caller must not save without it). */
-export async function uploadImage(prefix: "categories" | "subcategories" | "products" | "banners", file: File): Promise<string> {
+export async function uploadImage(prefix: "categories" | "subcategories" | "products" | "banners" | "options", file: File): Promise<string> {
   const client = getSessionClient();
   const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
   const path = `${prefix}/${crypto.randomUUID()}.${ext}`;

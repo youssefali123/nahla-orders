@@ -4,7 +4,7 @@ import { toast } from "react-hot-toast";
 import { BackButton } from "@/components/BackButton";
 import { site } from "@/config/site";
 import { useCart, useLiveProducts, type CartItem, type SelectedOption } from "@/lib/cart";
-import { getActiveZones, getCategory, getProduct, getServiceFeePercent, type DeliveryZone } from "@/lib/catalog";
+import { getActiveZones, getCategory, getProduct, getServiceFeePercent, nextOrderNumber, type DeliveryZone } from "@/lib/catalog";
 import { buildOrderMessage, type CustomerInfo, type OrderLine } from "@/lib/whatsapp";
 import sendOrderMessage from "@/services/send_order";
 
@@ -253,7 +253,15 @@ function CheckoutPage() {
       const liveServiceFee = priced.length > 0 ? round2((liveTotal * livePct) / 100) : 0;
       const liveGrandTotal = round2(liveTotal + (priced.length > 0 ? liveFee : 0) + liveServiceFee);
       // Recompute grand total with the service fee included.
-      const orderNo = String(Math.floor(100 + Math.random() * 900));
+      let orderNo: string;
+      try {
+        orderNo = String(await nextOrderNumber());
+      } catch (error) {
+        console.error(error);
+        toast.error("تعذر إنشاء رقم الطلب، حاول تاني");
+        setSending(false);
+        return;
+      }
       const message = buildOrderMessage(grouped, form, liveTotal, {
         zoneName: liveZone?.name ?? "",
         fee: liveFee,

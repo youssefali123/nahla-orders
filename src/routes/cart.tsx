@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Minus, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { BackButton } from "@/components/BackButton";
 import { site } from "@/config/site";
 import { useCart, useLiveProducts, type CartItem } from "@/lib/cart";
+import { getServiceFeePercent } from "@/lib/catalog";
 
 export const Route = createFileRoute("/cart")({
   head: () => ({
@@ -53,6 +55,26 @@ function CartPage() {
   const total = items.reduce((n, i) => (isUnavailable(i, live) ? n : n + liveUnitPrice(i, live) * i.qty), 0);
   const orderable = items.some((i) => !isUnavailable(i, live));
   const hasCustomOrder = items.some((i) => !!i.note);
+  const [feePct, setFeePct] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    getServiceFeePercent().then(
+      (pct) => {
+        if (!cancelled) setFeePct(pct);
+      },
+      () => {
+        if (!cancelled) setFeePct(0);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const serviceFee = round2((total * feePct) / 100);
+  const grandTotal = round2(total + serviceFee);
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 px-3 pt-4">
@@ -166,6 +188,22 @@ function CartPage() {
             {total} {site.currency}
           </span>
         </div>
+        {feePct > 0 && (
+          <>
+            <div className="flex items-center justify-between text-sm font-bold">
+              <span>رسوم الخدمة ({feePct}%)</span>
+              {/* <span className="text-primary-dark">
+                {serviceFee} {site.currency}
+              </span> */}
+            </div>
+            <div className="flex items-center justify-between border-t border-border pt-3 text-base font-extrabold">
+              <span>الإجمالي الكلي</span>
+              <span className="text-primary-dark">
+                {grandTotal} {site.currency}
+              </span>
+            </div>
+          </>
+        )}
         {hasCustomOrder && (
           <p className="rounded-xl bg-accent/20 p-2.5 text-center text-xs font-bold text-foreground">
             ✍️ سعر الطلب الخاص يتم تحديده لاحقًا
