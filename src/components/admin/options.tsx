@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  cleanupReplacedOptionImage,
   deleteOption,
   deleteOptionGroup,
   saveOption,
@@ -67,20 +68,24 @@ function OptionRow({
     active !== option.is_active ||
     (image ?? null) !== (option.image_url ?? null);
 
-  async function save() {
+  async function save(imageOverride?: string | null) {
     if (!name.trim()) {
       toast.error("اسم الاختيار مطلوب");
       return;
     }
+    const finalImage = imageOverride !== undefined ? imageOverride : image;
+    const prevImage = option.image_url ?? null;
     setSaving(true);
     try {
       await saveOption(option.option_group_id, option.id, {
         name: name.trim(),
         price_delta: delta,
-        image_url: image,
+        image_url: finalImage,
         sort_order: option.sort_order,
         is_active: active,
       });
+      // Best-effort: remove the orphaned previous file (never blocks).
+      await cleanupReplacedOptionImage(prevImage, finalImage, option.id);
       toast.success("تم حفظ الاختيار بنجاح");
       onSaved();
     } catch (e) {
@@ -115,15 +120,16 @@ function OptionRow({
               const file = e.target.files?.[0];
               e.target.value = "";
               if (!file) return;
-              setUploadingImage(true);
-              try {
-                setImage(await uploadImage("options", file));
-                toast.success("تم رفع الصورة — اضغط حفظ لتثبيتها");
-              } catch (err) {
-                toast.error(errMessage(err));
-              } finally {
-                setUploadingImage(false);
-              }
+            setUploadingImage(true);
+            try {
+              const url = await uploadImage("options", file);
+              setImage(url);
+              await save(url);
+            } catch (err) {
+              toast.error(errMessage(err));
+            } finally {
+              setUploadingImage(false);
+            }
             }}
           />
         </label>
@@ -134,7 +140,8 @@ function OptionRow({
             title="مسح الصورة"
             onClick={() => {
               setImage(null);
-              toast.success("اتشالت الصورة من المعاينة — دوس حفظ للتثبيت");
+              toast.success("اتشالت الصورة دوس حفظ للتثبيت")
+              // save(null);
             }}
             className="absolute -left-1 -top-1 grid h-6 w-6 place-items-center rounded-full bg-destructive text-destructive-foreground shadow transition-transform hover:scale-110"
           >
@@ -163,7 +170,7 @@ function OptionRow({
         />
       </button>
       {dirty && (
-        <Button type="button" size="sm" onClick={save} disabled={saving} className="shrink-0 rounded-xl font-bold">
+          <Button type="button" size="sm" onClick={() => save()} disabled={saving} className="shrink-0 rounded-xl font-bold">
           {saving ? "حفظ..." : "حفظ"}
         </Button>
       )}
@@ -183,6 +190,7 @@ function OptionRow({
         onConfirm={async () => {
           try {
             await deleteOption(option.id);
+            await cleanupReplacedOptionImage(option.image_url ?? null, null, option.id);
             toast.success("تم حذف الاختيار");
             onDeleted();
             setConfirmDelete(false);
@@ -439,7 +447,11 @@ export function OptionGroupEditor({
         impact="سيتم حذف المجموعة وجميع الاختيارات المرتبطة بها نهائيًا."
         onConfirm={async () => {
           try {
+            const doomed = group.options.map((o) => o.image_url ?? null);
             await deleteOptionGroup(group.id);
+            for (const url of doomed) {
+              await cleanupReplacedOptionImage(url, null, group.id);
+            }
             toast.success("تم حذف المجموعة");
             onChanged();
             setConfirmDelete(false);

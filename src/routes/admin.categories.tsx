@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
   deleteCategory,
+  deleteStoredImage,
   listCategoriesAdmin,
   saveCategory,
   type CategoryInput,
@@ -79,7 +80,9 @@ function AdminCategoriesPage() {
     }
     setSaving(true);
     try {
+      const prevImage = editing.id ? (rows?.find((r) => r.id === editing.id)?.image_url ?? null) : null;
       await saveCategory(editing.id, { ...editing.form, name: editing.form.name.trim() });
+      if (prevImage && prevImage !== editing.form.image_url) await deleteStoredImage(prevImage);
       toast.success(editing.id ? "تم حفظ التصنيف بنجاح" : "تمت إضافة التصنيف بنجاح");
       setEditing(null);
       load();
@@ -300,6 +303,7 @@ function AdminCategoriesPage() {
             if (!deleting) return;
             try {
               await deleteCategory(deleting.id);
+              await deleteStoredImage(deleting.image_url ?? null);
               toast.success("تم حذف التصنيف");
               setDeleting(null);
               load();

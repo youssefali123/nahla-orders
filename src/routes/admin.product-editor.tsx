@@ -15,7 +15,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  cleanupReplacedOptionImage,
   deleteProduct,
+  deleteStoredImage,
   getProductAdmin,
   getProductFilter,
   listCategoriesAdmin,
@@ -170,8 +172,10 @@ function ProductEditorPage() {
     }
     setSaving(true);
     try {
+      const prevImage = product?.image_url ?? null;
       const savedId = await saveProduct(id, { ...form, name: form.name.trim() });
       await saveProductFilter(savedId, filterId);
+      if (prevImage && prevImage !== form.image_url) await deleteStoredImage(prevImage);
       toast.success(id ? "تم حفظ المنتج بنجاح" : "تمت إضافة المنتج بنجاح");
       setDirty(false);
       if (!id) navigate({ to: "/admin/product-editor", search: { id: savedId }, replace: true });
@@ -371,7 +375,15 @@ function ProductEditorPage() {
           onConfirm={async () => {
             if (!id) return;
             try {
+              const doomedOptions = (product?.option_groups ?? []).flatMap((g) =>
+                g.options.map((o) => o.image_url ?? null),
+              );
+              const doomedProduct = product?.image_url ?? null;
               await deleteProduct(id);
+              for (const url of doomedOptions) {
+                await cleanupReplacedOptionImage(url, null, id);
+              }
+              await deleteStoredImage(doomedProduct);
               toast.success("تم حذف المنتج");
               navigate({ to: "/admin/products" });
             } catch (e) {

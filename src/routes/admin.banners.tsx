@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   deleteBanner,
+  deleteStoredImage,
   listBannersAdmin,
   listCategoriesAdmin,
   listProductsAdmin,
@@ -114,6 +115,7 @@ function AdminBannersPage() {
     }
     setSaving(true);
     try {
+      const prevImage = editing.id ? (rows?.find((r) => r.id === editing.id)?.image_url ?? null) : null;
       await saveBanner(editing.id, {
         title: editing.form.title || null,
         image_url: editing.form.image_url,
@@ -123,6 +125,7 @@ function AdminBannersPage() {
         sort_order: editing.form.sort_order,
         is_active: editing.form.is_active,
       });
+      if (prevImage && prevImage !== editing.form.image_url) await deleteStoredImage(prevImage);
       toast.success(editing.id ? "تم حفظ البنر بنجاح" : "تمت إضافة البنر بنجاح");
       setEditing(null);
       load();
@@ -371,6 +374,7 @@ function AdminBannersPage() {
             if (!deleting) return;
             try {
               await deleteBanner(deleting.id);
+              await deleteStoredImage(deleting.image_url ?? null);
               toast.success("تم حذف البنر");
               setDeleting(null);
               load();

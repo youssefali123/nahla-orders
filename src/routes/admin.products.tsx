@@ -9,7 +9,10 @@ import { ConfirmDialog } from "@/components/admin/dialogs";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
+  cleanupReplacedOptionImage,
   deleteProduct,
+  deleteStoredImage,
+  getProductAdmin,
   listCategoriesAdmin,
   listProductsAdmin,
   listSubcategoriesAdmin,
@@ -241,7 +244,14 @@ function AdminProductsPage() {
           onConfirm={async () => {
             if (!deleting) return;
             try {
+              const tree = await getProductAdmin(deleting.id).catch(() => null);
               await deleteProduct(deleting.id);
+              await deleteStoredImage(deleting.image_url ?? null);
+              for (const url of (tree?.option_groups ?? []).flatMap((g) =>
+                g.options.map((o) => o.image_url ?? null),
+              )) {
+                await cleanupReplacedOptionImage(url, null, deleting.id);
+              }
               toast.success("تم حذف المنتج");
               setDeleting(null);
               load();

@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
+  deleteStoredImage,
   deleteSubcategory,
   listCategoriesAdmin,
   listSubcategoriesAdmin,
@@ -106,7 +107,9 @@ function AdminSubcategoriesPage() {
     }
     setSaving(true);
     try {
+      const prevImage = editing.id ? (rows?.find((r) => r.id === editing.id)?.image_url ?? null) : null;
       await saveSubcategory(editing.id, { ...editing.form, name: editing.form.name.trim() });
+      if (prevImage && prevImage !== editing.form.image_url) await deleteStoredImage(prevImage);
       toast.success(editing.id ? "تم حفظ التصنيف الفرعي بنجاح" : "تمت إضافة التصنيف الفرعي بنجاح");
       setEditing(null);
       load();
@@ -371,6 +374,7 @@ function AdminSubcategoriesPage() {
             if (!deleting) return;
             try {
               await deleteSubcategory(deleting.id);
+              await deleteStoredImage(deleting.image_url ?? null);
               toast.success("تم حذف التصنيف الفرعي");
               setDeleting(null);
               load();

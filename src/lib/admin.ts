@@ -411,6 +411,46 @@ export async function uploadImage(prefix: "categories" | "subcategories" | "prod
   return data.publicUrl;
 }
 
+/**
+ * Best-effort deletion of one stored image file. Never throws.
+ */
+export async function deleteStoredImage(publicUrl: string | null): Promise<void> {
+  try {
+    if (!publicUrl) return;
+    const path = publicUrl.split("/nahla-images/")[1]?.split("?")[0];
+    if (!path) return;
+    await getSessionClient().storage.from("nahla-images").remove([path]);
+  } catch (error) {
+    console.error("image cleanup skipped:", error);
+  }
+}
+
+/**
+ * Best-effort cleanup of a replaced/removed option image: deletes the old
+ * storage file only when no other option row references it. Never throws —
+ * a leftover file is harmless, a blocked save is not.
+ */
+export async function cleanupReplacedOptionImage(
+  prevUrl: string | null,
+  nextUrl: string | null,
+  excludeOptionId: string,
+): Promise<void> {
+  try {
+    if (!prevUrl || prevUrl === nextUrl) return;
+    const client = getSessionClient();
+    const { data } = await client
+      .from("product_options")
+      .select("id")
+      .eq("image_url", prevUrl)
+      .neq("id", excludeOptionId)
+      .limit(1);
+    if ((data ?? []).length > 0) return;
+    await deleteStoredImage(prevUrl);
+  } catch (error) {
+    console.error("image cleanup skipped:", error);
+  }
+}
+
 export type FilterParentKind = "subcategory" | "category";
 
 function filterParentColumn(kind: FilterParentKind) {
