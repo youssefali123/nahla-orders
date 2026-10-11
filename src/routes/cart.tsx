@@ -105,7 +105,12 @@ function CartPage() {
                   {item.name}
                 </p>
                 {item.note ? (
-                  <p className="mt-0.5 line-clamp-3 text-xs text-muted-foreground">{item.note}</p>
+                  <>
+                    <p className="mt-0.5 line-clamp-3 text-xs text-muted-foreground">{item.note}</p>
+                    {item.subcategoryName && (
+                      <p className="mt-0.5 text-xs font-bold text-primary-dark">القسم: {item.subcategoryName}</p>
+                    )}
+                  </>
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     {price} {site.currency}

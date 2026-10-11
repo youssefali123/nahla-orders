@@ -1,22 +1,27 @@
 import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-router";
+import { useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
+import { FilterBar } from "@/components/FilterBar";
 import { Notice } from "@/components/Notice";
 import { ProductGrid } from "@/components/ProductCard";
 import {
-  getActiveProducts,
   getCategory,
+  getProductsWithFilters,
   getProductsWithOptions,
+  getSectionFilters,
   getSubcategory,
   type Category,
-  type Product,
+  type DisplayFilter,
+  type ProductWithFilter,
   type Subcategory,
 } from "@/lib/catalog";
 
 type SubcategoryLoaderData = {
   category: Category | null;
   sub: Subcategory | null;
-  products: Product[];
+  products: ProductWithFilter[];
+  filters: DisplayFilter[];
   optionFlags: Record<string, boolean>;
   error: string | null;
 };
@@ -30,16 +35,19 @@ export const Route = createFileRoute("/category/$categoryId/$subId")({
       sub = await getSubcategory(params.categoryId, params.subId);
     } catch (error) {
       console.error(error);
-      return { category: null, sub: null, products: [], optionFlags: {}, error: "حصل خطأ، حاول تاني." };
+      return { category: null, sub: null, products: [], filters: [], optionFlags: {}, error: "حصل خطأ، حاول تاني." };
     }
     if (!category || !sub) throw notFound();
     try {
-      const products = await getActiveProducts(category.id, sub.id);
-      const optionFlags = await getProductsWithOptions(products.map((p) => p.id));
-      return { category, sub, products, optionFlags, error: null };
+      const products = await getProductsWithFilters(category.id, sub.id);
+      const [optionFlags, filters] = await Promise.all([
+        getProductsWithOptions(products.map((p) => p.id)),
+        getSectionFilters("subcategory", sub.id),
+      ]);
+      return { category, sub, products, filters, optionFlags, error: null };
     } catch (error) {
       console.error(error);
-      return { category: null, sub: null, products: [], optionFlags: {}, error: "حصل خطأ، حاول تاني." };
+      return { category, sub, products: [], filters: [], optionFlags: {}, error: "حصل خطأ، حاول تاني." };
     }
   },
   head: ({ loaderData }) => {
@@ -61,8 +69,10 @@ export const Route = createFileRoute("/category/$categoryId/$subId")({
 });
 
 function SubcategoryPage() {
-  const { category, sub, products, optionFlags, error } = Route.useLoaderData();
+  const { category, sub, products, filters, optionFlags, error } = Route.useLoaderData();
   const router = useRouter();
+  const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
+  const visibleProducts = selectedFilter ? products.filter((p) => p.filter_id === selectedFilter) : products;
 
   if (error || !category || !sub) {
     return (
@@ -106,11 +116,33 @@ function SubcategoryPage() {
       {sub.requires_preorder && <Notice text="طلبات الأكل البيتي يجب طلبها قبلها بيوم." />}
 
       {products.length > 0 ? (
-        <ProductGrid products={products} optionFlags={optionFlags} />
+        <>
+          {filters.length > 0 && (
+            <FilterBar filters={filters} selected={selectedFilter} onSelect={setSelectedFilter} />
+          )}
+          {visibleProducts.length > 0 ? (
+            <ProductGrid products={visibleProducts} optionFlags={optionFlags} />
+          ) : (
+            <div className="rounded-2xl bg-card p-8 text-center shadow-soft">
+              <p className="text-4xl">🐝</p>
+              <p className="mt-2 font-bold">مفيش منتجات في القسم ده حالياً.</p>
+            </div>
+          )}
+        </>
       ) : (
         <div className="rounded-2xl bg-card p-8 text-center shadow-soft">
           <p className="text-4xl">🐝</p>
           <p className="mt-2 font-bold">مفيش منتجات في القسم ده حالياً.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            لو نفسك في حاجة معينة من {sub.name}، اكتبهالنا كطلب مخصص.
+          </p>
+          <Link
+            to="/custom-order"
+            search={{ cat: category.id, sub: sub.id }}
+            className="mt-4 inline-flex h-12 items-center justify-center rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            اطلب طلب مخصص في {sub.name} ✍️
+          </Link>
         </div>
       )}
     </div>

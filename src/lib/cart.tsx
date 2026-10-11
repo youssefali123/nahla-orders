@@ -21,6 +21,9 @@ export type CartItem = {
   qty: number;
   note?: string;
   selectedOptions?: SelectedOption[];
+  /** Custom-order context: the subcategory this request belongs to. */
+  subcategoryId?: string;
+  subcategoryName?: string;
 };
 
 /** Deterministic line key so identical configurations merge into one line. */

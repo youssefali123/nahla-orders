@@ -10,6 +10,7 @@ export type Category = {
   sort_order: number;
   is_active: boolean;
   type: CategoryType;
+  has_filters: boolean;
 };
 
 export type Subcategory = {
@@ -21,6 +22,7 @@ export type Subcategory = {
   sort_order: number;
   is_active: boolean;
   requires_preorder: boolean;
+  has_filters: boolean;
 };
 
 export type Product = {
@@ -298,6 +300,57 @@ export async function getActiveOptionGroups(productId: string): Promise<Configur
   return (groups as OptionGroup[])
     .map((group) => ({ ...group, options: byGroup.get(group.id) ?? [] }))
     .filter((group) => group.options.length > 0);
+}
+
+export type DisplayFilter = {
+  id: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+};
+
+export type ProductWithFilter = Product & { filter_id: string | null };
+
+/**
+ * Active display-filter values of an enabled section, ordered.
+ * Empty array when the section is disabled, missing, or has no values
+ * (caller hides the chip bar).
+ */
+export async function getSectionFilters(
+  kind: "subcategory" | "category",
+  id: string,
+): Promise<DisplayFilter[]> {
+  const column = kind === "subcategory" ? "subcategory_id" : "category_id";
+  const { data, error } = await supabase
+    .from("subcategory_filters")
+    .select("id,name,sort_order,is_active")
+    .eq(column, id)
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+  if (error) throw toCatalogError("تحميل فلاتر العرض", error);
+  return (data ?? []) as DisplayFilter[];
+}
+
+/**
+ * Same rows as getActiveProducts plus each row's filter id (null when
+ * unassigned), via one constant-cost mapping query — no N+1.
+ */
+export async function getProductsWithFilters(
+  categoryId: string,
+  subcategoryId?: string,
+): Promise<ProductWithFilter[]> {
+  const products = await getActiveProducts(categoryId, subcategoryId);
+  if (products.length === 0) return [];
+  const { data, error } = await supabase
+    .from("product_filter_values")
+    .select("product_id,filter_id")
+    .in(
+      "product_id",
+      products.map((p) => p.id),
+    );
+  if (error) throw toCatalogError("تحميل فلاتر المنتجات", error);
+  const mapping = new Map(((data ?? []) as { product_id: string; filter_id: string }[]).map((row) => [row.product_id, row.filter_id]));
+  return products.map((p) => ({ ...p, filter_id: mapping.get(p.id) ?? null }));
 }
 
 /** Maps each product id to whether it has any active option group with an active option. */

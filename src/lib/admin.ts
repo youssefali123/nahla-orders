@@ -4,6 +4,7 @@ import type {
   Category,
   ConfiguredProduct,
   DeliveryZone,
+  DisplayFilter,
   OptionGroup,
   Product,
   ProductOption,
@@ -17,6 +18,7 @@ function toAdminError(fallback: string, cause: unknown): AdminError {
   if (code === "23505") {
     const detail = String((cause as { details?: string }).details ?? "");
     if (detail.includes("product_options")) return { message: "اسم الخيار مستخدم بالفعل داخل هذه المجموعة.", cause };
+    if (detail.includes("subcategory_filters")) return { message: "اسم الفلتر مستخدم بالفعل في هذا القسم.", cause };
     return { message: "هذا الاسم مستخدم بالفعل.", cause };
   }
   if (code === "23514") return { message: "القيم المدخلة غير صالحة لهذه المجموعة.", cause };
@@ -190,6 +192,7 @@ export type CategoryInput = {
   sort_order: number;
   is_active: boolean;
   type: "normal" | "custom_order";
+  has_filters: boolean;
 };
 
 export async function saveCategory(id: string | null, input: CategoryInput): Promise<void> {
@@ -215,6 +218,7 @@ export type SubcategoryInput = {
   sort_order: number;
   is_active: boolean;
   requires_preorder: boolean;
+  has_filters: boolean;
 };
 
 export async function saveSubcategory(id: string | null, input: SubcategoryInput): Promise<void> {
@@ -405,4 +409,78 @@ export async function uploadImage(prefix: "categories" | "subcategories" | "prod
   if (error) throw toAdminError("تعذر رفع الصورة.", error);
   const { data } = client.storage.from("nahla-images").getPublicUrl(path);
   return data.publicUrl;
+}
+
+export type FilterParentKind = "subcategory" | "category";
+
+function filterParentColumn(kind: FilterParentKind) {
+  return kind === "subcategory" ? "subcategory_id" : "category_id";
+}
+
+export async function listFiltersAdmin(kind: FilterParentKind, parentId: string): Promise<DisplayFilter[]> {
+  const { data, error } = await getSessionClient()
+    .from("subcategory_filters")
+    .select("id,name,sort_order,is_active")
+    .eq(filterParentColumn(kind), parentId)
+    .order("sort_order", { ascending: true });
+  if (error) throw toAdminError("تعذر تحميل فلاتر العرض.", error);
+  return (data ?? []) as DisplayFilter[];
+}
+
+export type FilterInput = { name: string; sort_order: number; is_active: boolean };
+
+export async function saveFilter(
+  kind: FilterParentKind,
+  parentId: string,
+  id: string | null,
+  input: FilterInput,
+): Promise<string> {
+  const client = getSessionClient();
+  if (id === null) {
+    const { data, error } = await client
+      .from("subcategory_filters")
+      .insert({ ...input, [filterParentColumn(kind)]: parentId })
+      .select("id")
+      .single();
+    if (error) throw toAdminError("تعذر حفظ الفلتر.", error);
+    return (data as { id: string }).id;
+  }
+  const { error } = await client.from("subcategory_filters").update(input).eq("id", id);
+  if (error) throw toAdminError("تعذر حفظ الفلتر.", error);
+  return id;
+}
+
+export async function deleteFilter(id: string): Promise<void> {
+  const { error } = await getSessionClient().from("subcategory_filters").delete().eq("id", id);
+  if (error) throw toAdminError("تعذر حذف الفلتر.", error);
+}
+
+export async function setSectionFiltering(kind: FilterParentKind, id: string, enabled: boolean): Promise<void> {
+  const table = kind === "subcategory" ? "subcategories" : "categories";
+  const { error } = await getSessionClient().from(table).update({ has_filters: enabled }).eq("id", id);
+  if (error) throw toAdminError("تعذر تحديث إعداد الفلاتر.", error);
+}
+
+/** Sets (or clears with null) a product's single filter assignment. */
+export async function saveProductFilter(productId: string, filterId: string | null): Promise<void> {
+  const client = getSessionClient();
+  if (filterId === null) {
+    const { error } = await client.from("product_filter_values").delete().eq("product_id", productId);
+    if (error) throw toAdminError("تعذر مسح فلتر المنتج.", error);
+    return;
+  }
+  const { error } = await client
+    .from("product_filter_values")
+    .upsert({ product_id: productId, filter_id: filterId }, { onConflict: "product_id" });
+  if (error) throw toAdminError("تعذر حفظ فلتر المنتج.", error);
+}
+
+export async function getProductFilter(productId: string): Promise<string | null> {
+  const { data, error } = await getSessionClient()
+    .from("product_filter_values")
+    .select("filter_id")
+    .eq("product_id", productId)
+    .maybeSingle();
+  if (error) throw toAdminError("تعذر تحميل فلتر المنتج.", error);
+  return (data as { filter_id: string } | null)?.filter_id ?? null;
 }

@@ -39,7 +39,11 @@ export function buildOrderMessage(
     }
     n += 1;
     if (item.note) {
-      lines.push(`${n}. ${item.name}:`, `"${item.note}"`, "");
+      lines.push(
+        `${n}. ${item.name}${item.subcategoryName ? ` (${item.subcategoryName})` : ""}:`,
+        `"${item.note}"`,
+        "",
+      );
     } else {
       const unit = item.price + (item.selectedOptions ?? []).reduce((m, s) => m + s.priceDelta, 0);
       lines.push(`${n}. ${item.name} × ${item.qty}`, `السعر: ${item.qty * unit} ${site.currency}`);

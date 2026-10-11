@@ -6,6 +6,7 @@ import { AdminGuard } from "@/components/admin/AdminGuard";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { DataTable, EmptyState, ErrorState, SearchInput, StatusBadge, TableSkeleton } from "@/components/admin/DataTable";
 import { ConfirmDialog } from "@/components/admin/dialogs";
+import { FilterValuesManager } from "@/components/admin/filters";
 import { Field, ImageUploader } from "@/components/admin/forms";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -34,6 +35,7 @@ const EMPTY_FORM: SubcategoryInput = {
   sort_order: 0,
   is_active: true,
   requires_preorder: false,
+  has_filters: false,
 };
 
 function AdminSubcategoriesPage() {
@@ -87,6 +89,7 @@ function AdminSubcategoriesPage() {
         sort_order: row.sort_order,
         is_active: row.is_active,
         requires_preorder: row.requires_preorder,
+        has_filters: row.has_filters ?? false,
       },
     });
   }
@@ -124,6 +127,7 @@ function AdminSubcategoriesPage() {
         sort_order: row.sort_order,
         is_active: !row.is_active,
         requires_preorder: row.requires_preorder,
+        has_filters: row.has_filters ?? false,
       });
       toast.success(row.is_active ? "تم تعطيل التصنيف الفرعي" : "تم تفعيل التصنيف الفرعي");
       load();
@@ -328,6 +332,23 @@ function AdminSubcategoriesPage() {
                     />
                   </div>
                 </div>
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-muted p-3">
+                  <span className="text-sm font-bold">فلاتر العرض</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{editing.form.has_filters ? "مفعلة" : "معطلة"}</span>
+                    <Switch
+                      checked={editing.form.has_filters}
+                      onCheckedChange={(v) => setEditing({ ...editing, form: { ...editing.form, has_filters: v } })}
+                      aria-label="تفعيل فلاتر العرض"
+                    />
+                  </div>
+                </div>
+                {editing.id && editing.form.has_filters && (
+                  <div className="space-y-2 rounded-xl bg-muted p-3">
+                    <p className="text-sm font-extrabold">قيم الفلاتر</p>
+                    <FilterValuesManager kind="subcategory" parentId={editing.id} />
+                  </div>
+                )}
               </div>
             )}
             <DialogFooter className="flex-row-reverse gap-2">

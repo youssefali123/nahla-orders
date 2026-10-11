@@ -265,7 +265,7 @@ function ProductPage() {
                   },
                   qty,
                 );
-                toast.success("تمت إضافة المنتج للسلة 🐝");
+                toast.success(`تمت إضافة ${product.name} للسلة 🐝`);
               }}
               className="inline-flex h-13 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-base font-bold text-primary-foreground transition-opacity hover:opacity-90 active:scale-[0.99]"
             >

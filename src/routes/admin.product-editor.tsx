@@ -17,12 +17,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   deleteProduct,
   getProductAdmin,
+  getProductFilter,
   listCategoriesAdmin,
+  listFiltersAdmin,
   listSubcategoriesAdmin,
   saveProduct,
+  saveProductFilter,
   type ProductInput,
 } from "@/lib/admin";
-import type { Category, ConfiguredProduct, Subcategory } from "@/lib/catalog";
+import type { Category, ConfiguredProduct, DisplayFilter, Subcategory } from "@/lib/catalog";
 
 export const Route = createFileRoute("/admin/product-editor")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -60,6 +63,8 @@ function ProductEditorPage() {
   const [dirty, setDirty] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [filterOptions, setFilterOptions] = useState<DisplayFilter[]>([]);
+  const [filterId, setFilterId] = useState<string | null>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -100,6 +105,49 @@ function ProductEditorPage() {
     load();
   }, [load]);
 
+  // Section filter values: subcategory wins, else the direct category.
+  // Re-resolves on section change; stale assignments clear automatically.
+  useEffect(() => {
+    let cancelled = false;
+    const subId = form.subcategory_id;
+    const catId = form.category_id;
+    (async () => {
+      try {
+        let list: DisplayFilter[] = [];
+        if (subId) list = (await listFiltersAdmin("subcategory", subId)).filter((f) => f.is_active);
+        else if (catId) list = (await listFiltersAdmin("category", catId)).filter((f) => f.is_active);
+        if (cancelled) return;
+        setFilterOptions(list);
+        setFilterId((current) => (current && list.some((f) => f.id === current) ? current : null));
+      } catch {
+        if (!cancelled) setFilterOptions([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [form.subcategory_id, form.category_id]);
+
+  // Current assignment for existing products.
+  useEffect(() => {
+    if (!id) {
+      setFilterId(null);
+      return;
+    }
+    let cancelled = false;
+    getProductFilter(id).then(
+      (value) => {
+        if (!cancelled) setFilterId(value);
+      },
+      () => {
+        if (!cancelled) setFilterId(null);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
   function set<K extends keyof ProductInput>(key: K, value: ProductInput[K]) {
     setForm((f) => ({ ...f, [key]: value, ...(key === "category_id" ? { subcategory_id: null } : {}) }));
     setDirty(true);
@@ -123,6 +171,7 @@ function ProductEditorPage() {
     setSaving(true);
     try {
       const savedId = await saveProduct(id, { ...form, name: form.name.trim() });
+      await saveProductFilter(savedId, filterId);
       toast.success(id ? "تم حفظ المنتج بنجاح" : "تمت إضافة المنتج بنجاح");
       setDirty(false);
       if (!id) navigate({ to: "/admin/product-editor", search: { id: savedId }, replace: true });
@@ -237,6 +286,23 @@ function ProductEditorPage() {
                   </Select>
                 </Field>
               </div>
+              {filterOptions.length > 0 && (
+                <Field id="pe-filter" label="فلتر العرض" hint="يظهر المنتج تحت هذا التصنيف في شريط الفلاتر">
+                  <Select value={filterId ?? "none"} onValueChange={(v) => setFilterId(v === "none" ? null : v)}>
+                    <SelectTrigger id="pe-filter" className="h-12 rounded-xl">
+                      <SelectValue placeholder="بدون فلتر" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">بدون فلتر</SelectItem>
+                      {filterOptions.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <Field id="pe-icon" label="الأيقونة" hint="إيموجي يظهر عند غياب الصورة">
                   <Input id="pe-icon" value={form.icon ?? ""} onChange={(e) => set("icon", e.target.value)} className="h-12 rounded-xl" placeholder="🍗" />

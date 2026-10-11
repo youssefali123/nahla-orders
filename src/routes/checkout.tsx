@@ -410,7 +410,12 @@ function CheckoutPage() {
                 <span className="min-w-0">
                   <span className="font-bold">{item.name}</span>
                   {item.note ? (
-                    <span className="block text-xs text-muted-foreground">{item.note}</span>
+                    <>
+                      <span className="block text-xs text-muted-foreground">{item.note}</span>
+                      {item.subcategoryName && (
+                        <span className="block text-xs font-bold text-primary-dark">القسم: {item.subcategoryName}</span>
+                      )}
+                    </>
                   ) : (
                     <>
                       <span className="block text-xs text-muted-foreground">× {item.qty}</span>
