@@ -134,7 +134,7 @@ function Index() {
             const tile = (
               <>
                 <span
-                  className={`grid h-14 w-14 place-items-center overflow-hidden rounded-2xl text-3xl ${
+                  className={`grid aspect-square w-full place-items-center overflow-hidden rounded-2xl text-4xl transition-transform duration-300 group-hover:scale-[1.03] ${
                     i % 2 === 0 ? "bg-primary/12" : "bg-accent/30"
                   }`}
                   aria-hidden
@@ -149,7 +149,7 @@ function Index() {
               </>
             );
             const className =
-              "anim-rise flex flex-col items-center gap-2 rounded-2xl bg-card p-3 text-center shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card";
+              "anim-rise group flex flex-col items-center gap-1.5 text-center";
             const animStyle = { "--anim-delay": `${Math.min(i, 4) * 60}ms` } as CSSProperties;
             return c.type === "custom_order" ? (
               <Link key={c.id} to="/custom-order" className={className} style={animStyle}>

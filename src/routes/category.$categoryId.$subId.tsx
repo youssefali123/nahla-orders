@@ -72,7 +72,15 @@ function SubcategoryPage() {
   const { category, sub, products, filters, optionFlags, error } = Route.useLoaderData();
   const router = useRouter();
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
-  const visibleProducts = selectedFilter ? products.filter((p) => p.filter_id === selectedFilter) : products;
+  // "All" view follows the filter-bar grouping: each filter's products first
+  // in bar order, unassigned products trail at the end.
+  const filterOrder = new Map(filters.map((f, i) => [f.id, i]));
+  const visibleProducts = (selectedFilter ? products.filter((p) => p.filter_id === selectedFilter) : [...products].sort(
+    (a, b) =>
+      (a.filter_id ? (filterOrder.get(a.filter_id) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER) -
+      (b.filter_id ? (filterOrder.get(b.filter_id) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER) ||
+      a.sort_order - b.sort_order,
+  ));
 
   if (error || !category || !sub) {
     return (

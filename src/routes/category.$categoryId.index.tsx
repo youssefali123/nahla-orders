@@ -70,7 +70,15 @@ function CategoryPage() {
   const { category, subcategories, products, filters, optionFlags, error } = Route.useLoaderData();
   const router = useRouter();
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
-  const visibleProducts = selectedFilter ? products.filter((p) => p.filter_id === selectedFilter) : products;
+  // "All" view follows the filter-bar grouping: each filter's products first
+  // in bar order, unassigned products trail at the end.
+  const filterOrder = new Map(filters.map((f, i) => [f.id, i]));
+  const visibleProducts = (selectedFilter ? products.filter((p) => p.filter_id === selectedFilter) : [...products].sort(
+    (a, b) =>
+      (a.filter_id ? (filterOrder.get(a.filter_id) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER) -
+      (b.filter_id ? (filterOrder.get(b.filter_id) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER) ||
+      a.sort_order - b.sort_order,
+  ));
 
   if (error || !category) {
     return (
@@ -106,15 +114,15 @@ function CategoryPage() {
       </div>
 
       {subcategories.length > 0 ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 bg-card p-4 rounded-2xl shadow-soft">
           {subcategories.map((sub) => (
             <Link
               key={sub.id}
               to="/category/$categoryId/$subId"
               params={{ categoryId: category.id, subId: sub.id }}
-              className="flex flex-col items-center gap-2 rounded-2xl bg-card p-4 text-center shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-card"
+              className="group flex flex-col items-center gap-1.5 text-center"
             >
-              <span className="grid h-16 w-16 place-items-center overflow-hidden rounded-2xl bg-accent/25 text-3xl" aria-hidden>
+              <span className="grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-accent/25 text-4xl transition-transform duration-300 group-hover:scale-[1.03]" aria-hidden>
                 {sub.image_url ? (
                   <img src={sub.image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
                 ) : (
