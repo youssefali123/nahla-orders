@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CartRouteImport } from './routes/cart'
 import { Route as CheckoutRouteImport } from './routes/checkout'
+import { Route as CustomItemsRouteImport } from './routes/custom-items'
 import { Route as CustomOrderRouteImport } from './routes/custom-order'
 import { Route as OrderSuccessRouteImport } from './routes/order-success'
 import { Route as SearchRouteImport } from './routes/search'
@@ -42,6 +43,11 @@ const CartRoute = CartRouteImport.update({
 const CheckoutRoute = CheckoutRouteImport.update({
   id: '/checkout',
   path: '/checkout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomItemsRoute = CustomItemsRouteImport.update({
+  id: '/custom-items',
+  path: '/custom-items',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CustomOrderRoute = CustomOrderRouteImport.update({
@@ -129,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/custom-items': typeof CustomItemsRoute
   '/custom-order': typeof CustomOrderRoute
   '/order-success': typeof OrderSuccessRoute
   '/search': typeof SearchRoute
@@ -150,6 +157,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/custom-items': typeof CustomItemsRoute
   '/custom-order': typeof CustomOrderRoute
   '/order-success': typeof OrderSuccessRoute
   '/search': typeof SearchRoute
@@ -172,6 +180,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/custom-items': typeof CustomItemsRoute
   '/custom-order': typeof CustomOrderRoute
   '/order-success': typeof OrderSuccessRoute
   '/search': typeof SearchRoute
@@ -195,6 +204,7 @@ export interface FileRouteTypes {
     | '/'
     | '/cart'
     | '/checkout'
+    | '/custom-items'
     | '/custom-order'
     | '/order-success'
     | '/search'
@@ -216,6 +226,7 @@ export interface FileRouteTypes {
     | '/'
     | '/cart'
     | '/checkout'
+    | '/custom-items'
     | '/custom-order'
     | '/order-success'
     | '/search'
@@ -237,6 +248,7 @@ export interface FileRouteTypes {
     | '/'
     | '/cart'
     | '/checkout'
+    | '/custom-items'
     | '/custom-order'
     | '/order-success'
     | '/search'
@@ -259,6 +271,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CartRoute: typeof CartRoute
   CheckoutRoute: typeof CheckoutRoute
+  CustomItemsRoute: typeof CustomItemsRoute
   CustomOrderRoute: typeof CustomOrderRoute
   OrderSuccessRoute: typeof OrderSuccessRoute
   SearchRoute: typeof SearchRoute
@@ -298,6 +311,13 @@ declare module '@tanstack/react-router' {
       path: '/checkout'
       fullPath: '/checkout'
       preLoaderRoute: typeof CheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/custom-items': {
+      id: '/custom-items'
+      path: '/custom-items'
+      fullPath: '/custom-items'
+      preLoaderRoute: typeof CustomItemsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/custom-order': {
@@ -419,6 +439,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CartRoute: CartRoute,
   CheckoutRoute: CheckoutRoute,
+  CustomItemsRoute: CustomItemsRoute,
   CustomOrderRoute: CustomOrderRoute,
   OrderSuccessRoute: OrderSuccessRoute,
   SearchRoute: SearchRoute,

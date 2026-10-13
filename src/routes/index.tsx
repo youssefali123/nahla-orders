@@ -80,7 +80,6 @@ function Index() {
   const { banners, featured, optionFlags, error } = Route.useLoaderData();
   const categories = rootApi.useLoaderData();
   const router = useRouter();
-  const firstCategory = categories.find((c) => c.type !== "custom_order");
 
   // Branded splash: once per session on first home entry (guaranteed visible),
   // plus the route pendingComponent covers slow data loads afterwards.
@@ -166,17 +165,14 @@ function Index() {
 
       <section>
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-extrabold">🔥 الأكثر طلبًا</h2>
-          {firstCategory && (
-            <Link
-              to="/category/$categoryId"
-              params={{ categoryId: firstCategory.id }}
-              className="inline-flex items-center gap-1 text-sm font-bold text-primary-dark"
-            >
-              عرض الكل
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          )}
+          <h2 className="text-lg font-extrabold">🔥 عروض خاصة</h2>
+          <Link
+            to="/custom-items"
+            className="inline-flex items-center gap-1 text-sm font-bold text-primary-dark"
+          >
+            عرض الكل
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
         </div>
         {featured.length > 0 ? (
           <ProductGrid products={featured} optionFlags={optionFlags} />

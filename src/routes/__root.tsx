@@ -148,7 +148,7 @@ function RootComponent() {
           </main>
           {!isAdmin && <Footer />}
         </div>
-        {!isAdmin && <WhatsAppFloat />}
+        {!isAdmin && pathname === "/" && <WhatsAppFloat />}
         <Toaster position="top-center" />
       </CartProvider>
     </QueryClientProvider>
