@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AdminGuard } from "@/components/admin/AdminGuard";
 import { AdminShell } from "@/components/admin/AdminShell";
@@ -65,6 +65,7 @@ function ProductEditorPage() {
   const [dirty, setDirty] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [leaveTo, setLeaveTo] = useState<"products" | "new">("products");
   const [filterOptions, setFilterOptions] = useState<DisplayFilter[]>([]);
   const [filterId, setFilterId] = useState<string | null>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
@@ -188,8 +189,30 @@ function ProductEditorPage() {
   }
 
   function back() {
-    if (dirty) setConfirmLeave(true);
-    else navigate({ to: "/admin/products" });
+    if (dirty) {
+      setLeaveTo("products");
+      setConfirmLeave(true);
+    } else navigate({ to: "/admin/products" });
+  }
+
+  function startNewProduct() {
+    if (dirty) {
+      setLeaveTo("new");
+      setConfirmLeave(true);
+      return;
+    }
+    resetForNew();
+  }
+
+  function resetForNew() {
+    setForm({ ...EMPTY, category_id: form.category_id, subcategory_id: form.subcategory_id });
+    setProduct(null);
+    setFilterId(null);
+    setErrors([]);
+    setDirty(false);
+    setConfirmLeave(false);
+    navigate({ to: "/admin/product-editor", search: { id: null } });
+    window.scrollTo(0, 0);
   }
 
   const subOptions = subcategories.filter((s) => s.category_id === form.category_id);
@@ -204,15 +227,26 @@ function ProductEditorPage() {
         title={id ? "تعديل المنتج" : "منتج جديد"}
         actions={
           id ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setConfirmDelete(true)}
-              className="h-11 gap-2 rounded-xl font-bold text-destructive"
-            >
-              <Trash2 className="h-4 w-4" aria-hidden />
-              حذف
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={startNewProduct}
+                className="h-11 gap-2 rounded-xl font-bold"
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                منتج جديد
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setConfirmDelete(true)}
+                className="h-11 gap-2 rounded-xl font-bold text-destructive"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden />
+                حذف
+              </Button>
+            </div>
           ) : undefined
         }
       >
@@ -397,8 +431,8 @@ function ProductEditorPage() {
           onOpenChange={setConfirmLeave}
           title="تجاهل التغييرات؟"
           impact="لديك تغييرات غير محفوظة ستفقدها."
-          confirmLabel="تجاهل ورجوع"
-          onConfirm={() => navigate({ to: "/admin/products" })}
+          confirmLabel={leaveTo === "new" ? "تجاهل وابدأ جديد" : "تجاهل ورجوع"}
+          onConfirm={() => (leaveTo === "new" ? resetForNew() : navigate({ to: "/admin/products" }))}
         />
       </AdminShell>
     </AdminGuard>
