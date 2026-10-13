@@ -38,7 +38,7 @@ export function Footer() {
       </div>
       <div className="border-t border-primary-foreground/15 py-3 text-center text-xs opacity-80">
         {/* © {new Date().getFullYear()} {site.name}. جميع الحقوق محفوظة. */}
-        تم البرمجة بواسطة <a target="_blank" rel="noreferrer" className="text-primary-foreground transition-opacity hover:opacity-100 underline font-bold hover:underline-2 px-2 py-1 rounded-full text-lg"  href="wa.me/201096150381">يوسف علي</a> 
+        تم البرمجة بواسطة <a target="_blank" rel="noreferrer" className="text-primary-foreground transition-opacity hover:opacity-100 underline font-bold hover:underline-2 px-2 py-1 rounded-full text-lg"  href="https://wa.me/201096150381">يوسف علي</a> 
       </div>
     </footer>
   );
