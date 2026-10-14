@@ -406,14 +406,22 @@ export async function uploadImage(prefix: "categories" | "subcategories" | "prod
   const client = getSessionClient();
   // Client-side compression first (max 300KB); on any failure the original
   // file is uploaded instead so the workflow never blocks on old devices.
+  // mimeType is forced to JPEG: PNG sources otherwise stay PNG and the
+  // 300KB target becomes unreachable for large photos.
   let payload = file;
   try {
-    const compressed = await compressImage(file, { maxWidth: 1600, quality: 0.8, targetSizeMB: 0.3 });
+    const compressed = await compressImage(file, {
+      maxWidth: 1600,
+      quality: 0.8,
+      targetSizeMB: 0.3,
+      mimeType: "image/jpeg",
+    });
     if (compressed.size > 0 && compressed.size <= file.size) payload = compressed;
   } catch (error) {
     console.error("image compression skipped, uploading original:", error);
   }
-  const ext = (payload.name.split(".").pop()?.toLowerCase() || "jpg").slice(0, 5);
+  const rawExt = payload.name.split(".").pop()?.toLowerCase();
+  const ext = ((payload.type === "image/jpeg" ? "jpg" : rawExt) || "jpg").slice(0, 5);
   const path = `${prefix}/${crypto.randomUUID()}.${ext}`;
   const { error } = await client.storage.from("nahla-images").upload(path, payload, { contentType: payload.type || "image/jpeg" });
   if (error) throw toAdminError("تعذر رفع الصورة.", error);
