@@ -2,7 +2,8 @@ const CHAT_ID = import.meta.env["VITE_TELEGRAM_CHAT_ID"] as string | undefined;
 const BOT_TOKEN = import.meta.env["VITE_TELEGRAM_BOT_TOKEN"] as string | undefined;
 
 const mohamed_chat_id = "1818575201";
-const group_ID = "-5521635797";
+const group_ID = "-1004223828643";
+// const group_ID = "8653896427";
 
 export type SendOrderResult = { ok: true } | { ok: false; error: string };
 
