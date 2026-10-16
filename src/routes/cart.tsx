@@ -197,9 +197,9 @@ function CartPage() {
           <>
             <div className="flex items-center justify-between text-sm font-bold">
               <span>رسوم الخدمة ({feePct}%)</span>
-              {/* <span className="text-primary-dark">
+              <span className="text-primary-dark">
                 {serviceFee} {site.currency}
-              </span> */}
+              </span>
             </div>
             <div className="flex items-center justify-between border-t border-border pt-3 text-base font-extrabold">
               <span>الإجمالي الكلي</span>

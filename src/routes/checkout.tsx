@@ -104,8 +104,7 @@ function CheckoutPage() {
   const total = orderable.reduce((n, i) => (i.note ? n : n + unitOf(i) * i.qty), 0);
   const round2 = (n: number) => Math.round(n * 100) / 100;
   const serviceFee = orderable.length > 0 ? round2((total * feePct) / 100) : 0;
-  // Delivery fee is informational only — never added to the grand total.
-  const grandTotal = round2(total + serviceFee);
+  const grandTotal = round2(total + (orderable.length > 0 ? deliveryFee : 0) + serviceFee);
   const zonesReady = zones !== null;
   const noZones = zonesReady && zones.length === 0;
 
@@ -252,7 +251,7 @@ function CheckoutPage() {
       }
       const liveFee = liveZone ? Number(liveZone.fee) : 0;
       const liveServiceFee = priced.length > 0 ? round2((liveTotal * livePct) / 100) : 0;
-      const liveGrandTotal = round2(liveTotal + liveServiceFee);
+      const liveGrandTotal = round2(liveTotal + (priced.length > 0 ? liveFee : 0) + liveServiceFee);
       // Recompute grand total with the service fee included.
       let orderNo: string;
       try {
@@ -453,9 +452,9 @@ function CheckoutPage() {
           {feePct > 0 && (
             <div className="flex items-center justify-between text-sm font-bold">
               <span>رسوم الخدمة ({feePct}%)</span>
-              {/* <span className="text-primary-dark">
+              <span className="text-primary-dark">
                 {serviceFee} {site.currency}
-              </span> */}
+              </span>
             </div>
           )}
           <div className="flex items-center justify-between border-t border-border pt-3 text-lg font-extrabold">
