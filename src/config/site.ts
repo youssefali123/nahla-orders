@@ -10,3 +10,13 @@ export const site = {
   whatsappNumber:
     (import.meta.env["VITE_WHATSAPP_NUMBER"] as string | undefined) ?? "201025007990",
 } as const;
+
+/**
+ * Global switch for Supabase database dependency.
+ * Currently set to `false` because Supabase free quota was exceeded.
+ * In this mode, the website runs exclusively in "Custom Order" mode without database dependency.
+ * 
+ * To re-enable Supabase once the issue/quota is resolved, simply change this value to `true`.
+ */
+export const SUPABASE_ENABLED = false;
+

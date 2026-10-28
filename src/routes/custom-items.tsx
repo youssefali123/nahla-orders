@@ -1,5 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useRouter } from "@tanstack/react-router";
+import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { BackButton } from "@/components/BackButton";
 import { ProductGrid } from "@/components/ProductCard";
 import {
@@ -7,6 +6,7 @@ import {
   getProductsWithOptions,
   type Product,
 } from "@/lib/catalog";
+import { SUPABASE_ENABLED } from "@/config/site";
 
 type CustomItemsLoaderData = {
   products: Product[];
@@ -16,8 +16,12 @@ type CustomItemsLoaderData = {
 
 export const Route = createFileRoute("/custom-items")({
   loader: async (): Promise<CustomItemsLoaderData> => {
+    if (!SUPABASE_ENABLED) {
+      throw redirect({ to: "/" });
+    }
     try {
       const products = await getFeaturedProducts(100);
+
       const optionFlags = await getProductsWithOptions(products.map((p) => p.id));
       return { products, optionFlags, error: null };
     } catch (error) {
