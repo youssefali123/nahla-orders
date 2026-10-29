@@ -18,5 +18,5 @@ export const site = {
  * 
  * To re-enable Supabase once the issue/quota is resolved, simply change this value to `true`.
  */
-export const SUPABASE_ENABLED = false;
+export const SUPABASE_ENABLED = true;
 
