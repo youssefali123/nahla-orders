@@ -446,7 +446,7 @@ function CheckoutPage() {
               التوصيل{selectedZone ? ` (${selectedZone.name})` : zonesReady ? "" : " (…)"}
             </span>
             <span className="text-primary-dark">
-              {!zonesReady ? "…" : selectedZone && deliveryFee === 0 ? "مجاني 🎉" : `${deliveryFee} ${site.currency}`}
+              {!zonesReady ? "…" : selectedZone && deliveryFee === 0 ? "" : `${deliveryFee} ${site.currency}`}
             </span>
           </div>
           {feePct > 0 && (
