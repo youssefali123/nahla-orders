@@ -393,7 +393,7 @@ function CheckoutPage() {
                       {zone.name}
                     </span>
                     <span className="shrink-0 font-extrabold text-primary-dark">
-                      {fee === 0 ? "توصيل مجاني 🎉" : `${fee} ${site.currency}`}
+                      {fee === 0 ? "" : `${fee} ${site.currency}`}
                     </span>
                   </label>
                 );
