@@ -14,6 +14,7 @@ import {
   type ProductWithFilter,
   type Subcategory,
 } from "@/lib/catalog";
+import { SUPABASE_ENABLED } from "@/config/site";
 
 type CategoryLoaderData = {
   category: Category | null;
@@ -26,7 +27,11 @@ type CategoryLoaderData = {
 
 export const Route = createFileRoute("/category/$categoryId/")({
   loader: async ({ params }): Promise<CategoryLoaderData> => {
+    if (!SUPABASE_ENABLED) {
+      throw redirect({ to: "/" });
+    }
     let category: Category | null;
+
     try {
       category = await getCategory(params.categoryId);
     } catch (error) {

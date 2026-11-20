@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ProductGrid } from "@/components/ProductCard";
 import { searchProducts, getProductsWithOptions, type Product } from "@/lib/catalog";
+import { SUPABASE_ENABLED } from "@/config/site";
 
 export const Route = createFileRoute("/search")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -8,6 +9,9 @@ export const Route = createFileRoute("/search")({
   }),
   loaderDeps: ({ search }) => ({ q: search.q }),
   loader: async ({ deps }): Promise<{ results: Product[]; optionFlags: Record<string, boolean>; error: string | null }> => {
+    if (!SUPABASE_ENABLED) {
+      return { results: [], optionFlags: {}, error: null };
+    }
     try {
       const results = await searchProducts(deps.q);
       const optionFlags = await getProductsWithOptions(results.map((p) => p.id));
@@ -36,7 +40,20 @@ function SearchPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 px-3 pt-4">
       <h1 className="text-xl font-extrabold">نتائج البحث عن: {q}</h1>
-      {error ? (
+      {!SUPABASE_ENABLED ? (
+        <div className="rounded-2xl bg-card p-8 text-center shadow-soft">
+          <p className="text-4xl">🐝</p>
+          <p className="mt-2 font-bold">البحث في المنتجات معطل حالياً بسبب مشكلة فنية</p>
+          <p className="mt-1 text-sm text-muted-foreground">تقدر تكتب اللي محتاجه في الطلب المخصص وسنقوم بتوفيره وتوصيله لك فوراً.</p>
+          <Link
+            to="/custom-order"
+            className="mt-4 inline-flex h-12 items-center justify-center rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground"
+          >
+            اطلب طلب مخصص
+          </Link>
+        </div>
+      ) : error ? (
+
         <div className="rounded-2xl bg-card p-8 text-center shadow-soft">
           <p className="text-4xl">🐝</p>
           <p className="mt-2 font-bold">{error}</p>

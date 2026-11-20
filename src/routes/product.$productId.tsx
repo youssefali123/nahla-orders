@@ -1,15 +1,19 @@
-import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, redirect, useRouter } from "@tanstack/react-router";
 import { Minus, Plus, ShoppingCart } from "lucide-react";
 import { useState } from "react";
 import { toast } from "react-hot-toast";
 import { BackButton } from "@/components/BackButton";
-import { site } from "@/config/site";
+import { site, SUPABASE_ENABLED } from "@/config/site";
 import { getProduct, type ConfiguredGroup, type ConfiguredProduct } from "@/lib/catalog";
 import { useCart } from "@/lib/cart";
 
 export const Route = createFileRoute("/product/$productId")({
   loader: async ({ params }): Promise<{ product: ConfiguredProduct | null; error: string | null }> => {
+    if (!SUPABASE_ENABLED) {
+      throw redirect({ to: "/" });
+    }
     let product: ConfiguredProduct | null;
+
     try {
       product = await getProduct(params.productId);
     } catch (error) {

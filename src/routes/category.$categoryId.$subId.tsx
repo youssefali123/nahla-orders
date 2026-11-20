@@ -1,4 +1,4 @@
-import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, redirect, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
@@ -16,6 +16,7 @@ import {
   type ProductWithFilter,
   type Subcategory,
 } from "@/lib/catalog";
+import { SUPABASE_ENABLED } from "@/config/site";
 
 type SubcategoryLoaderData = {
   category: Category | null;
@@ -28,7 +29,11 @@ type SubcategoryLoaderData = {
 
 export const Route = createFileRoute("/category/$categoryId/$subId")({
   loader: async ({ params }): Promise<SubcategoryLoaderData> => {
+    if (!SUPABASE_ENABLED) {
+      throw redirect({ to: "/" });
+    }
     let category: Category | null;
+
     let sub: Subcategory | null;
     try {
       category = await getCategory(params.categoryId);
