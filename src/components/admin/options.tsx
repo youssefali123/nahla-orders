@@ -19,18 +19,23 @@ import {
   deleteOptionGroup,
   saveOption,
   saveOptionGroup,
-  uploadImage,
   type AdminError,
 } from "@/lib/admin";
 import type { ConfiguredGroup, ProductOption } from "@/lib/catalog";
-import { Field } from "./forms";
+import { Field, ImageUrlDialog } from "./forms";
 import { ConfirmDialog } from "./dialogs";
 
 function errMessage(error: unknown): string {
   return (error as AdminError)?.message ?? "حصل خطأ، حاول تاني.";
 }
 
-export function PriceDeltaInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+export function PriceDeltaInput({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
   return (
     <div className="flex items-center gap-1.5">
       <Input
@@ -41,7 +46,9 @@ export function PriceDeltaInput({ value, onChange }: { value: number; onChange: 
         aria-label="الزيادة على السعر"
         inputMode="decimal"
       />
-      <span className="shrink-0 text-xs font-bold text-muted-foreground">جنيه</span>
+      <span className="shrink-0 text-xs font-bold text-muted-foreground">
+        جنيه
+      </span>
     </div>
   );
 }
@@ -58,7 +65,7 @@ function OptionRow({
   const [name, setName] = useState(option.name);
   const [delta, setDelta] = useState(Number(option.price_delta));
   const [image, setImage] = useState<string | null>(option.image_url ?? null);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [active, setActive] = useState(option.is_active);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -97,51 +104,36 @@ function OptionRow({
 
   return (
     <div className="flex items-center gap-2 rounded-xl bg-card p-2 shadow-soft">
-      <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+      <GripVertical
+        className="h-4 w-4 shrink-0 text-muted-foreground"
+        aria-hidden
+      />
       <span className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-muted-foreground">
-        <label
+        <button
+          type="button"
+          onClick={() => setDialogOpen(true)}
           className="grid h-full w-full cursor-pointer place-items-center transition-colors hover:border-primary"
-          aria-label={image ? `تغيير صورة ${option.name}` : `رفع صورة لـ ${option.name}`}
-          title={image ? "تغيير الصورة" : "رفع صورة للاختيار"}
+          aria-label={
+            image ? `تعديل صورة ${option.name}` : `إضافة صورة لـ ${option.name}`
+          }
+          title={
+            image ? "اضغط لتعديل رابط الصورة" : "اضغط لإضافة رابط صورة للاختيار"
+          }
         >
-          {uploadingImage ? (
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-primary" aria-hidden />
-          ) : image ? (
+          {image ? (
             <img src={image} alt="" className="h-full w-full object-cover" />
           ) : (
             <ImagePlus className="h-4 w-4" aria-hidden />
           )}
-          <input
-            type="file"
-            accept="image/*"
-            className="sr-only"
-            disabled={uploadingImage}
-            onChange={async (e) => {
-              const file = e.target.files?.[0];
-              e.target.value = "";
-              if (!file) return;
-            setUploadingImage(true);
-            try {
-              const url = await uploadImage("options", file);
-              setImage(url);
-              await save(url);
-            } catch (err) {
-              toast.error(errMessage(err));
-            } finally {
-              setUploadingImage(false);
-            }
-            }}
-          />
-        </label>
+        </button>
         {image && (
           <button
             type="button"
             aria-label={`مسح صورة ${option.name}`}
             title="مسح الصورة"
-            onClick={() => {
+            onClick={async () => {
               setImage(null);
-              toast.success("اتشالت الصورة دوس حفظ للتثبيت")
-              // save(null);
+              await save(null);
             }}
             className="absolute -left-1 -top-1 grid h-6 w-6 place-items-center rounded-full bg-destructive text-destructive-foreground shadow transition-transform hover:scale-110"
           >
@@ -149,6 +141,16 @@ function OptionRow({
           </button>
         )}
       </span>
+      <ImageUrlDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        value={image}
+        title={`صورة اختيار: ${option.name}`}
+        onSave={async (url) => {
+          setImage(url);
+          await save(url);
+        }}
+      />
       <Input
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -170,7 +172,13 @@ function OptionRow({
         />
       </button>
       {dirty && (
-          <Button type="button" size="sm" onClick={() => save()} disabled={saving} className="shrink-0 rounded-xl font-bold">
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => save()}
+          disabled={saving}
+          className="shrink-0 rounded-xl font-bold"
+        >
           {saving ? "حفظ..." : "حفظ"}
         </Button>
       )}
@@ -190,7 +198,11 @@ function OptionRow({
         onConfirm={async () => {
           try {
             await deleteOption(option.id);
-            await cleanupReplacedOptionImage(option.image_url ?? null, null, option.id);
+            await cleanupReplacedOptionImage(
+              option.image_url ?? null,
+              null,
+              option.id,
+            );
             toast.success("تم حذف الاختيار");
             onDeleted();
             setConfirmDelete(false);
@@ -217,9 +229,13 @@ function GroupDialog({
   onSaved: () => void;
 }) {
   const [name, setName] = useState(group?.name ?? "");
-  const [type, setType] = useState<"single" | "multiple">(group?.type ?? "single");
+  const [type, setType] = useState<"single" | "multiple">(
+    group?.type ?? "single",
+  );
   const [min, setMin] = useState(group?.min_selections ?? 0);
-  const [max, setMax] = useState<number | null>(group?.max_selections ?? (group?.type === "multiple" ? null : 1));
+  const [max, setMax] = useState<number | null>(
+    group?.max_selections ?? (group?.type === "multiple" ? null : 1),
+  );
   const [active, setActive] = useState(group?.is_active ?? true);
   const [saving, setSaving] = useState(false);
 
@@ -258,21 +274,42 @@ function GroupDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl" aria-label={group ? "تعديل المجموعة" : "مجموعة جديدة"}>
+      <DialogContent
+        className="max-h-[90vh] overflow-y-auto rounded-2xl"
+        aria-label={group ? "تعديل المجموعة" : "مجموعة جديدة"}
+      >
         <DialogHeader>
-          <DialogTitle>{group ? "تعديل المجموعة" : "مجموعة خيارات جديدة"}</DialogTitle>
+          <DialogTitle>
+            {group ? "تعديل المجموعة" : "مجموعة خيارات جديدة"}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <Field id="group-name" label="اسم المجموعة" required>
-            <Input id="group-name" value={name} onChange={(e) => setName(e.target.value)} className="h-12 rounded-xl" placeholder="مثال: الحجم" />
+            <Input
+              id="group-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="h-12 rounded-xl"
+              placeholder="مثال: الحجم"
+            />
           </Field>
           <div>
-            <Label className="mb-1.5 block text-sm font-bold">نوع الاختيار</Label>
+            <Label className="mb-1.5 block text-sm font-bold">
+              نوع الاختيار
+            </Label>
             <div className="grid grid-cols-2 gap-2">
               {(
                 [
-                  { v: "single", t: "اختيار واحد", h: "يسمح للعميل باختيار عنصر واحد فقط." },
-                  { v: "multiple", t: "متعدد الاختيارات", h: "يسمح للعميل باختيار أكثر من عنصر." },
+                  {
+                    v: "single",
+                    t: "اختيار واحد",
+                    h: "يسمح للعميل باختيار عنصر واحد فقط.",
+                  },
+                  {
+                    v: "multiple",
+                    t: "متعدد الاختيارات",
+                    h: "يسمح للعميل باختيار أكثر من عنصر.",
+                  },
                 ] as const
               ).map((opt) => (
                 <button
@@ -281,17 +318,25 @@ function GroupDialog({
                   onClick={() => pickType(opt.v)}
                   aria-pressed={type === opt.v}
                   className={`rounded-xl border p-3 text-right transition-colors ${
-                    type === opt.v ? "border-primary bg-primary/10" : "border-border bg-card"
+                    type === opt.v
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-card"
                   }`}
                 >
                   <span className="block text-sm font-extrabold">{opt.t}</span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">{opt.h}</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {opt.h}
+                  </span>
                 </button>
               ))}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field id="group-min" label="الحد الأدنى" hint={type === "single" ? "0 أو 1 فقط" : undefined}>
+            <Field
+              id="group-min"
+              label="الحد الأدنى"
+              hint={type === "single" ? "0 أو 1 فقط" : undefined}
+            >
               <Input
                 id="group-min"
                 type="number"
@@ -303,14 +348,24 @@ function GroupDialog({
                 inputMode="numeric"
               />
             </Field>
-            <Field id="group-max" label="الحد الأقصى" hint={type === "single" ? "دائمًا 1" : "اتركه فارغًا بدون حد"}>
+            <Field
+              id="group-max"
+              label="الحد الأقصى"
+              hint={type === "single" ? "دائمًا 1" : "اتركه فارغًا بدون حد"}
+            >
               <Input
                 id="group-max"
                 type="number"
                 min={0}
                 value={max ?? ""}
                 disabled={type === "single"}
-                onChange={(e) => setMax(e.target.value === "" ? null : Math.max(0, Number(e.target.value)))}
+                onChange={(e) =>
+                  setMax(
+                    e.target.value === ""
+                      ? null
+                      : Math.max(0, Number(e.target.value)),
+                  )
+                }
                 className="h-12 rounded-xl"
                 inputMode="numeric"
                 placeholder="بدون حد"
@@ -320,16 +375,32 @@ function GroupDialog({
           <div className="flex items-center justify-between gap-2 rounded-xl bg-muted p-3">
             <span className="text-sm font-bold">الحالة</span>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{active ? "مفعلة" : "معطلة"}</span>
-              <Switch checked={active} onCheckedChange={setActive} aria-label="حالة المجموعة" />
+              <span className="text-xs text-muted-foreground">
+                {active ? "مفعلة" : "معطلة"}
+              </span>
+              <Switch
+                checked={active}
+                onCheckedChange={setActive}
+                aria-label="حالة المجموعة"
+              />
             </div>
           </div>
         </div>
         <DialogFooter className="flex-row-reverse gap-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="rounded-xl"
+          >
             إلغاء
           </Button>
-          <Button type="button" onClick={save} disabled={saving} className="rounded-xl font-bold">
+          <Button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="rounded-xl font-bold"
+          >
             {saving ? "جاري الحفظ..." : "حفظ المجموعة"}
           </Button>
         </DialogFooter>
@@ -387,7 +458,9 @@ export function OptionGroupEditor({
           <p className="mt-0.5 text-xs text-muted-foreground">
             {group.type === "single" ? "اختيار واحد" : "متعدد الاختيارات"}
             {group.min_selections > 0 ? " · مطلوب" : " · اختياري"}
-            {group.type === "multiple" && group.max_selections !== null ? ` · حتى ${group.max_selections}` : ""}
+            {group.type === "multiple" && group.max_selections !== null
+              ? ` · حتى ${group.max_selections}`
+              : ""}
             {!group.is_active ? " · معطلة" : ""}
           </p>
         </div>
@@ -412,7 +485,12 @@ export function OptionGroupEditor({
       </div>
       <div className="mt-2 space-y-2">
         {group.options.map((option) => (
-          <OptionRow key={option.id} option={option} onSaved={onChanged} onDeleted={onChanged} />
+          <OptionRow
+            key={option.id}
+            option={option}
+            onSaved={onChanged}
+            onDeleted={onChanged}
+          />
         ))}
       </div>
       {showAddOption ? (
@@ -425,7 +503,13 @@ export function OptionGroupEditor({
             className="h-10 min-w-0 flex-1 rounded-xl"
           />
           <PriceDeltaInput value={newDelta} onChange={setNewDelta} />
-          <Button type="button" size="sm" onClick={addOption} disabled={savingOption} className="shrink-0 rounded-xl font-bold">
+          <Button
+            type="button"
+            size="sm"
+            onClick={addOption}
+            disabled={savingOption}
+            className="shrink-0 rounded-xl font-bold"
+          >
             {savingOption ? "..." : "إضافة"}
           </Button>
         </div>
@@ -439,7 +523,13 @@ export function OptionGroupEditor({
           إضافة اختيار
         </button>
       )}
-      <GroupDialog productId={productId} group={group} open={editing} onOpenChange={setEditing} onSaved={onChanged} />
+      <GroupDialog
+        productId={productId}
+        group={group}
+        open={editing}
+        onOpenChange={setEditing}
+        onSaved={onChanged}
+      />
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
@@ -464,7 +554,13 @@ export function OptionGroupEditor({
   );
 }
 
-export function NewOptionGroupButton({ productId, onChanged }: { productId: string; onChanged: () => void }) {
+export function NewOptionGroupButton({
+  productId,
+  onChanged,
+}: {
+  productId: string;
+  onChanged: () => void;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -476,22 +572,42 @@ export function NewOptionGroupButton({ productId, onChanged }: { productId: stri
         <Plus className="h-4 w-4" aria-hidden />
         إضافة مجموعة
       </button>
-      <GroupDialog productId={productId} group={null} open={open} onOpenChange={setOpen} onSaved={onChanged} />
+      <GroupDialog
+        productId={productId}
+        group={null}
+        open={open}
+        onOpenChange={setOpen}
+        onSaved={onChanged}
+      />
     </>
   );
 }
 
-export function PricePreview({ base, picks }: { base: number; picks: { label: string; delta: number }[] }) {
+export function PricePreview({
+  base,
+  picks,
+}: {
+  base: number;
+  picks: { label: string; delta: number }[];
+}) {
   const total = base + picks.reduce((n, p) => n + p.delta, 0);
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 text-sm" aria-label="معاينة السعر">
-      <p className="text-xs font-bold text-muted-foreground">معاينة — للمساعدة فقط</p>
+    <div
+      className="rounded-2xl border border-border bg-card p-4 text-sm"
+      aria-label="معاينة السعر"
+    >
+      <p className="text-xs font-bold text-muted-foreground">
+        معاينة — للمساعدة فقط
+      </p>
       <div className="mt-2 flex justify-between">
         <span>السعر الأساسي</span>
         <span className="font-bold">{base} جنيه</span>
       </div>
       {picks.map((p, i) => (
-        <div key={i} className="mt-1 flex justify-between text-muted-foreground">
+        <div
+          key={i}
+          className="mt-1 flex justify-between text-muted-foreground"
+        >
           <span>+ {p.label}</span>
           <span className="font-bold">+{p.delta} جنيه</span>
         </div>
