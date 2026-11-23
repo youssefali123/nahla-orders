@@ -1,8 +1,15 @@
 import { supabase } from "./supabase";
 import { SUPABASE_ENABLED } from "@/config/site";
+import { normalizeDiscountPercent, normalizeExtraPrice } from "./pricing";
 
 export const DEFAULT_DELIVERY_ZONES: DeliveryZone[] = [
-  { id: "default-zone", name: "توصيل عادي", fee: 0, sort_order: 1, is_active: true },
+  {
+    id: "default-zone",
+    name: "توصيل عادي",
+    fee: 0,
+    sort_order: 1,
+    is_active: true,
+  },
 ];
 
 export const FALLBACK_CUSTOM_ORDER_CATEGORY: Category = {
@@ -14,10 +21,10 @@ export const FALLBACK_CUSTOM_ORDER_CATEGORY: Category = {
   is_active: true,
   type: "custom_order",
   has_filters: false,
+  product_layout: "grid",
 };
 
 export type CategoryType = "normal" | "custom_order";
-
 
 export type Category = {
   id: string;
@@ -28,6 +35,7 @@ export type Category = {
   is_active: boolean;
   type: CategoryType;
   has_filters: boolean;
+  product_layout: "grid" | "list";
 };
 
 export type Subcategory = {
@@ -40,6 +48,7 @@ export type Subcategory = {
   is_active: boolean;
   requires_preorder: boolean;
   has_filters: boolean;
+  product_layout: "grid" | "list";
 };
 
 export type Product = {
@@ -48,6 +57,8 @@ export type Product = {
   subcategory_id: string | null;
   name: string;
   price: number;
+  extra_price: number;
+  discount_percent: number;
   icon: string | null;
   image_url: string | null;
   description: string | null;
@@ -57,7 +68,8 @@ export type Product = {
   is_featured: boolean;
 };
 
-export type BannerLinkType = "category" | "subcategory" | "product" | "custom" | "none";
+export type BannerLinkType =
+  "category" | "subcategory" | "product" | "custom" | "none";
 export type Banner = {
   id: string;
   title: string | null;
@@ -84,7 +96,27 @@ function toCatalogError(action: string, cause: unknown): CatalogError {
 function toProduct(row: Record<string, unknown>): Product {
   return {
     ...(row as unknown as Product),
-    price: Number((row as { price: string | number }).price),
+    price: Number((row as { price: string | number }).price) || 0,
+    extra_price: normalizeExtraPrice(
+      (row as { extra_price?: unknown }).extra_price,
+    ),
+    discount_percent: normalizeDiscountPercent(
+      (row as { discount_percent?: unknown }).discount_percent,
+    ),
+  };
+}
+
+function toCategory(row: Record<string, unknown>): Category {
+  return {
+    ...(row as unknown as Category),
+    product_layout: row["product_layout"] === "list" ? "list" : "grid",
+  };
+}
+
+function toSubcategory(row: Record<string, unknown>): Subcategory {
+  return {
+    ...(row as unknown as Subcategory),
+    product_layout: row["product_layout"] === "list" ? "list" : "grid",
   };
 }
 
@@ -102,7 +134,7 @@ export async function getActiveCategories(): Promise<Category[]> {
       .eq("is_active", true)
       .order("sort_order", { ascending: true });
     if (error) throw toCatalogError("تحميل الأقسام", error);
-    return (data ?? []) as Category[];
+    return ((data ?? []) as Record<string, unknown>[]).map(toCategory);
   } catch (err) {
     console.error("getActiveCategories fallback:", err);
     return [FALLBACK_CUSTOM_ORDER_CATEGORY];
@@ -110,7 +142,9 @@ export async function getActiveCategories(): Promise<Category[]> {
 }
 
 /** Active subcategories of a category; empty array means show products directly. */
-export async function getActiveSubcategories(categoryId: string): Promise<Subcategory[]> {
+export async function getActiveSubcategories(
+  categoryId: string,
+): Promise<Subcategory[]> {
   if (!SUPABASE_ENABLED) return [];
   try {
     const { data, error } = await supabase
@@ -120,7 +154,7 @@ export async function getActiveSubcategories(categoryId: string): Promise<Subcat
       .eq("is_active", true)
       .order("sort_order", { ascending: true });
     if (error) throw toCatalogError("تحميل الأقسام الفرعية", error);
-    return (data ?? []) as Subcategory[];
+    return ((data ?? []) as Record<string, unknown>[]).map(toSubcategory);
   } catch (err) {
     console.error("getActiveSubcategories fallback:", err);
     return [];
@@ -128,23 +162,34 @@ export async function getActiveSubcategories(categoryId: string): Promise<Subcat
 }
 
 /** A category regardless of active flag (routing distinguishes missing vs inactive). */
-export async function getCategory(categoryId: string): Promise<Category | null> {
+export async function getCategory(
+  categoryId: string,
+): Promise<Category | null> {
   if (!SUPABASE_ENABLED) {
     if (categoryId === "custom-order") return FALLBACK_CUSTOM_ORDER_CATEGORY;
     return null;
   }
   try {
-    const { data, error } = await supabase.from("categories").select("*").eq("id", categoryId).maybeSingle();
+    const { data, error } = await supabase
+      .from("categories")
+      .select("*")
+      .eq("id", categoryId)
+      .maybeSingle();
     if (error) throw toCatalogError("تحميل القسم", error);
-    return (data ?? null) as Category | null;
+    return data ? toCategory(data as Record<string, unknown>) : null;
   } catch (err) {
     console.error("getCategory fallback:", err);
-    return categoryId === "custom-order" ? FALLBACK_CUSTOM_ORDER_CATEGORY : null;
+    return categoryId === "custom-order"
+      ? FALLBACK_CUSTOM_ORDER_CATEGORY
+      : null;
   }
 }
 
 /** A subcategory when it belongs to the given category, else null. */
-export async function getSubcategory(categoryId: string, subId: string): Promise<Subcategory | null> {
+export async function getSubcategory(
+  categoryId: string,
+  subId: string,
+): Promise<Subcategory | null> {
   if (!SUPABASE_ENABLED) return null;
   try {
     const { data, error } = await supabase
@@ -154,7 +199,7 @@ export async function getSubcategory(categoryId: string, subId: string): Promise
       .eq("category_id", categoryId)
       .maybeSingle();
     if (error) throw toCatalogError("تحميل القسم الفرعي", error);
-    return (data ?? null) as Subcategory | null;
+    return data ? toSubcategory(data as Record<string, unknown>) : null;
   } catch (err) {
     console.error("getSubcategory fallback:", err);
     return null;
@@ -162,11 +207,18 @@ export async function getSubcategory(categoryId: string, subId: string): Promise
 }
 
 function baseProductQuery() {
-  return supabase.from("products").select("*").eq("is_active", true).order(ACTIVE_ORDER_COLUMN, { ascending: true });
+  return supabase
+    .from("products")
+    .select("*")
+    .eq("is_active", true)
+    .order(ACTIVE_ORDER_COLUMN, { ascending: true });
 }
 
 /** Active products of a category, optionally narrowed to one subcategory. */
-export async function getActiveProducts(categoryId: string, subcategoryId?: string): Promise<Product[]> {
+export async function getActiveProducts(
+  categoryId: string,
+  subcategoryId?: string,
+): Promise<Product[]> {
   if (!SUPABASE_ENABLED) return [];
   try {
     let query = baseProductQuery().eq("category_id", categoryId);
@@ -184,7 +236,9 @@ export async function getActiveProducts(categoryId: string, subcategoryId?: stri
 export async function getFeaturedProducts(limit = 12): Promise<Product[]> {
   if (!SUPABASE_ENABLED) return [];
   try {
-    const { data, error } = await baseProductQuery().eq("is_featured", true).limit(limit);
+    const { data, error } = await baseProductQuery()
+      .eq("is_featured", true)
+      .limit(limit);
     if (error) throw toCatalogError("تحميل المنتجات المميزة", error);
     return ((data ?? []) as Record<string, unknown>[]).map(toProduct);
   } catch (err) {
@@ -211,12 +265,18 @@ export async function getProductsByIds(ids: string[]): Promise<Product[]> {
 }
 
 /** A subcategory by id regardless of parent (banner target resolution). */
-export async function getSubcategoryById(subId: string): Promise<Subcategory | null> {
+export async function getSubcategoryById(
+  subId: string,
+): Promise<Subcategory | null> {
   if (!SUPABASE_ENABLED) return null;
   try {
-    const { data, error } = await supabase.from("subcategories").select("*").eq("id", subId).maybeSingle();
+    const { data, error } = await supabase
+      .from("subcategories")
+      .select("*")
+      .eq("id", subId)
+      .maybeSingle();
     if (error) throw toCatalogError("تحميل القسم الفرعي", error);
-    return (data ?? null) as Subcategory | null;
+    return data ? toSubcategory(data as Record<string, unknown>) : null;
   } catch (err) {
     console.error("getSubcategoryById fallback:", err);
     return null;
@@ -225,14 +285,23 @@ export async function getSubcategoryById(subId: string): Promise<Subcategory | n
 
 /** A product regardless of active flag (detail page decides unavailable vs not-found).
  * Now embeds the ordered active option tree (`option_groups`, [] when none). */
-export async function getProduct(productId: string): Promise<ConfiguredProduct | null> {
+export async function getProduct(
+  productId: string,
+): Promise<ConfiguredProduct | null> {
   if (!SUPABASE_ENABLED) return null;
   try {
-    const { data, error } = await supabase.from("products").select("*").eq("id", productId).maybeSingle();
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("id", productId)
+      .maybeSingle();
     if (error) throw toCatalogError("تحميل المنتج", error);
     if (!data) return null;
     const product = toProduct(data as Record<string, unknown>);
-    return { ...product, option_groups: await getActiveOptionGroups(product.id) };
+    return {
+      ...product,
+      option_groups: await getActiveOptionGroups(product.id),
+    };
   } catch (err) {
     console.error("getProduct fallback:", err);
     return null;
@@ -317,7 +386,8 @@ export async function nextOrderNumber(): Promise<number> {
     const { data, error } = await supabase.rpc("next_order_number");
     if (error) throw toCatalogError("إنشاء رقم الطلب", error);
     const n = Number(data);
-    if (!Number.isInteger(n) || n <= 0) throw toCatalogError("إنشاء رقم الطلب", data);
+    if (!Number.isInteger(n) || n <= 0)
+      throw toCatalogError("إنشاء رقم الطلب", data);
     return n;
   } catch (err) {
     console.error("nextOrderNumber fallback:", err);
@@ -382,7 +452,9 @@ function toProductOption(row: Record<string, unknown>): ProductOption {
 }
 
 /** Active option groups of a product (ordered), each with its active options (ordered). */
-export async function getActiveOptionGroups(productId: string): Promise<ConfiguredGroup[]> {
+export async function getActiveOptionGroups(
+  productId: string,
+): Promise<ConfiguredGroup[]> {
   if (!SUPABASE_ENABLED) return [];
   try {
     const { data: groups, error: groupsError } = await supabase
@@ -400,7 +472,8 @@ export async function getActiveOptionGroups(productId: string): Promise<Configur
       .in("option_group_id", groupIds)
       .eq("is_active", true)
       .order("sort_order", { ascending: true });
-    if (optionsError) throw toCatalogError("تحميل اختيارات المنتج", optionsError);
+    if (optionsError)
+      throw toCatalogError("تحميل اختيارات المنتج", optionsError);
     const byGroup = new Map<string, ProductOption[]>();
     for (const row of (options ?? []) as Record<string, unknown>[]) {
       const option = toProductOption(row);
@@ -472,8 +545,15 @@ export async function getProductsWithFilters(
         products.map((p) => p.id),
       );
     if (error) throw toCatalogError("تحميل فلاتر المنتجات", error);
-    const mapping = new Map(((data ?? []) as { product_id: string; filter_id: string }[]).map((row) => [row.product_id, row.filter_id]));
-    return products.map((p) => ({ ...p, filter_id: mapping.get(p.id) ?? null }));
+    const mapping = new Map(
+      ((data ?? []) as { product_id: string; filter_id: string }[]).map(
+        (row) => [row.product_id, row.filter_id],
+      ),
+    );
+    return products.map((p) => ({
+      ...p,
+      filter_id: mapping.get(p.id) ?? null,
+    }));
   } catch (err) {
     console.error("getProductsWithFilters fallback:", err);
     return [];
@@ -481,7 +561,9 @@ export async function getProductsWithFilters(
 }
 
 /** Maps each product id to whether it has any active option group with an active option. */
-export async function getProductsWithOptions(ids: string[]): Promise<Record<string, boolean>> {
+export async function getProductsWithOptions(
+  ids: string[],
+): Promise<Record<string, boolean>> {
   if (!SUPABASE_ENABLED || ids.length === 0) return {};
   try {
     const { data, error } = await supabase
@@ -493,11 +575,11 @@ export async function getProductsWithOptions(ids: string[]): Promise<Record<stri
     if (error) throw toCatalogError("تحميل اختيارات المنتجات", error);
     const result: Record<string, boolean> = {};
     for (const id of ids) result[id] = false;
-    for (const row of (data ?? []) as { product_id: string }[]) result[row.product_id] = true;
+    for (const row of (data ?? []) as { product_id: string }[])
+      result[row.product_id] = true;
     return result;
   } catch (err) {
     console.error("getProductsWithOptions fallback:", err);
     return {};
   }
 }
-

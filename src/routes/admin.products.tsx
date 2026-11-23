@@ -4,10 +4,23 @@ import { Pencil, Plus, Power, Trash2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AdminGuard } from "@/components/admin/AdminGuard";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { DataTable, EmptyState, ErrorState, SearchInput, StatusBadge, TableSkeleton } from "@/components/admin/DataTable";
+import {
+  DataTable,
+  EmptyState,
+  ErrorState,
+  SearchInput,
+  StatusBadge,
+  TableSkeleton,
+} from "@/components/admin/DataTable";
 import { ConfirmDialog } from "@/components/admin/dialogs";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   cleanupReplacedOptionImage,
   deleteProduct,
@@ -19,6 +32,7 @@ import {
   saveProduct,
 } from "@/lib/admin";
 import type { Category, Product, Subcategory } from "@/lib/catalog";
+import { isOnOffer, unitPrice } from "@/lib/pricing";
 
 export const Route = createFileRoute("/admin/products")({
   head: () => ({ meta: [{ title: "المنتجات | إدارة نحلة" }] }),
@@ -57,9 +71,13 @@ function AdminProductsPage() {
     load();
   }, [load]);
 
-  const catName = useCallback((id: string) => categories.find((c) => c.id === id)?.name ?? "—", [categories]);
+  const catName = useCallback(
+    (id: string) => categories.find((c) => c.id === id)?.name ?? "—",
+    [categories],
+  );
   const subName = useCallback(
-    (id: string | null) => (id ? (subcategories.find((s) => s.id === id)?.name ?? "—") : "—"),
+    (id: string | null) =>
+      id ? (subcategories.find((s) => s.id === id)?.name ?? "—") : "—",
     [subcategories],
   );
 
@@ -69,7 +87,8 @@ function AdminProductsPage() {
         (p) =>
           (catFilter === "all" || p.category_id === catFilter) &&
           (subFilter === "all" || p.subcategory_id === subFilter) &&
-          (statusFilter === "all" || (statusFilter === "active") === p.is_active) &&
+          (statusFilter === "all" ||
+            (statusFilter === "active") === p.is_active) &&
           p.name.includes(query.trim()),
       ),
     [rows, query, catFilter, subFilter, statusFilter],
@@ -82,6 +101,8 @@ function AdminProductsPage() {
         subcategory_id: row.subcategory_id,
         name: row.name,
         price: Number(row.price),
+        extra_price: Number(row.extra_price ?? 0),
+        discount_percent: Number(row.discount_percent ?? 0),
         icon: row.icon,
         image_url: row.image_url,
         description: row.description,
@@ -93,7 +114,9 @@ function AdminProductsPage() {
       toast.success(row.is_active ? "تم تعطيل المنتج" : "تم تفعيل المنتج");
       load();
     } catch (e) {
-      toast.error((e as { message?: string })?.message ?? "حصل خطأ، حاول تاني.");
+      toast.error(
+        (e as { message?: string })?.message ?? "حصل خطأ، حاول تاني.",
+      );
     }
   }
 
@@ -108,7 +131,9 @@ function AdminProductsPage() {
         actions={
           <Button
             type="button"
-            onClick={() => navigate({ to: "/admin/product-editor", search: { id: null } })}
+            onClick={() =>
+              navigate({ to: "/admin/product-editor", search: { id: null } })
+            }
             className="h-11 gap-2 rounded-xl font-bold"
           >
             <Plus className="h-4 w-4" aria-hidden />
@@ -117,9 +142,22 @@ function AdminProductsPage() {
         }
       >
         <div className="flex flex-wrap gap-2">
-          <SearchInput value={query} onChange={setQuery} placeholder="بحث عن منتج..." />
-          <Select value={catFilter} onValueChange={(v) => { setCatFilter(v); setSubFilter("all"); }}>
-            <SelectTrigger className="h-11 w-full rounded-xl sm:w-44" aria-label="تصفية بالتصنيف">
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="بحث عن منتج..."
+          />
+          <Select
+            value={catFilter}
+            onValueChange={(v) => {
+              setCatFilter(v);
+              setSubFilter("all");
+            }}
+          >
+            <SelectTrigger
+              className="h-11 w-full rounded-xl sm:w-44"
+              aria-label="تصفية بالتصنيف"
+            >
               <SelectValue placeholder="التصنيف" />
             </SelectTrigger>
             <SelectContent>
@@ -132,13 +170,18 @@ function AdminProductsPage() {
             </SelectContent>
           </Select>
           <Select value={subFilter} onValueChange={setSubFilter}>
-            <SelectTrigger className="h-11 w-full rounded-xl sm:w-44" aria-label="تصفية بالتصنيف الفرعي">
+            <SelectTrigger
+              className="h-11 w-full rounded-xl sm:w-44"
+              aria-label="تصفية بالتصنيف الفرعي"
+            >
               <SelectValue placeholder="الفرعي" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">كل الفروع</SelectItem>
               {subcategories
-                .filter((s) => catFilter === "all" || s.category_id === catFilter)
+                .filter(
+                  (s) => catFilter === "all" || s.category_id === catFilter,
+                )
                 .map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     {s.name}
@@ -147,7 +190,10 @@ function AdminProductsPage() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-11 w-full rounded-xl sm:w-36" aria-label="تصفية بالحالة">
+            <SelectTrigger
+              className="h-11 w-full rounded-xl sm:w-36"
+              aria-label="تصفية بالحالة"
+            >
               <SelectValue placeholder="الحالة" />
             </SelectTrigger>
             <SelectContent>
@@ -170,30 +216,93 @@ function AdminProductsPage() {
                 header: "المنتج",
                 render: (p) => (
                   <span className="flex items-center gap-3">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-xl" aria-hidden>
-                      {p.image_url ? <img src={p.image_url} alt="" className="h-full w-full object-cover" loading="lazy" /> : (p.icon ?? "🐝")}
+                    <span
+                      className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-xl"
+                      aria-hidden
+                    >
+                      {p.image_url ? (
+                        <img
+                          src={p.image_url}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        (p.icon ?? "🐝")
+                      )}
                     </span>
                     <span>
                       <span className="block font-bold">{p.name}</span>
-                      <span className="block text-xs text-muted-foreground">{catName(p.category_id)}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {catName(p.category_id)}
+                      </span>
                     </span>
                   </span>
                 ),
               },
-              { key: "price", header: "السعر", render: (p) => <span className="font-extrabold text-primary-dark">{Number(p.price)} جنيه</span> },
-              { key: "status", header: "الحالة", render: (p) => <StatusBadge active={p.is_active} /> },
+              {
+                key: "price",
+                header: "السعر",
+                render: (p) => {
+                  const pricing = {
+                    base: Number(p.price) || 0,
+                    extra: Number(p.extra_price) || 0,
+                    discountPercent: Number(p.discount_percent) || 0,
+                  };
+                  const finalP = unitPrice(pricing);
+                  const onOffer = isOnOffer(pricing);
+                  return (
+                    <span className="flex flex-col items-start gap-0.5">
+                      <span className="font-extrabold text-primary-dark">
+                        {finalP} جنيه
+                      </span>
+                      {onOffer ? (
+                        <span className="rounded bg-red-500/10 px-1 py-0.5 text-[10px] font-bold text-red-600">
+                          خصم {Number(p.discount_percent)}%
+                        </span>
+                      ) : Number(p.extra_price) > 0 ? (
+                        <span className="text-[10px] text-muted-foreground">
+                          (إضافي +{Number(p.extra_price)})
+                        </span>
+                      ) : null}
+                    </span>
+                  );
+                },
+              },
+              {
+                key: "status",
+                header: "الحالة",
+                render: (p) => <StatusBadge active={p.is_active} />,
+              },
               {
                 key: "actions",
                 header: "الإجراءات",
                 render: (p) => (
                   <span className="flex gap-1">
-                    <button type="button" aria-label={`تعديل ${p.name}`} onClick={() => edit(p.id)} className="grid h-9 w-9 place-items-center rounded-xl transition-colors hover:bg-muted">
+                    <button
+                      type="button"
+                      aria-label={`تعديل ${p.name}`}
+                      onClick={() => edit(p.id)}
+                      className="grid h-9 w-9 place-items-center rounded-xl transition-colors hover:bg-muted"
+                    >
                       <Pencil className="h-4 w-4" aria-hidden />
                     </button>
-                    <button type="button" aria-label={p.is_active ? `تعطيل ${p.name}` : `تفعيل ${p.name}`} onClick={() => toggle(p)} className="grid h-9 w-9 place-items-center rounded-xl transition-colors hover:bg-muted">
+                    <button
+                      type="button"
+                      aria-label={
+                        p.is_active ? `تعطيل ${p.name}` : `تفعيل ${p.name}`
+                      }
+                      onClick={() => toggle(p)}
+                      className="grid h-9 w-9 place-items-center rounded-xl transition-colors hover:bg-muted"
+                    >
                       <Power className="h-4 w-4" aria-hidden />
                     </button>
-                    <button type="button" aria-label={`حذف ${p.name}`} onClick={() => setDeleting(p)} className="grid h-9 w-9 place-items-center rounded-xl text-destructive transition-colors hover:bg-destructive/10">
+                    <button
+                      type="button"
+                      aria-label={`حذف ${p.name}`}
+                      onClick={() => setDeleting(p)}
+                      className="grid h-9 w-9 place-items-center rounded-xl text-destructive transition-colors hover:bg-destructive/10"
+                    >
                       <Trash2 className="h-4 w-4" aria-hidden />
                     </button>
                   </span>
@@ -203,8 +312,19 @@ function AdminProductsPage() {
             renderMobileCard={(p) => (
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
-                  <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-2xl" aria-hidden>
-                    {p.image_url ? <img src={p.image_url} alt="" className="h-full w-full object-cover" /> : (p.icon ?? "🐝")}
+                  <span
+                    className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-2xl"
+                    aria-hidden
+                  >
+                    {p.image_url ? (
+                      <img
+                        src={p.image_url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      (p.icon ?? "🐝")
+                    )}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-extrabold">{p.name}</p>
@@ -215,9 +335,33 @@ function AdminProductsPage() {
                   <StatusBadge active={p.is_active} />
                 </div>
                 <div className="flex gap-2 border-t border-border pt-2">
-                  <Button type="button" variant="outline" size="sm" onClick={() => edit(p.id)} className="flex-1 rounded-xl font-bold">تعديل</Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => toggle(p)} className="flex-1 rounded-xl font-bold">{p.is_active ? "تعطيل" : "تفعيل"}</Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setDeleting(p)} className="flex-1 rounded-xl font-bold text-destructive">حذف</Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => edit(p.id)}
+                    className="flex-1 rounded-xl font-bold"
+                  >
+                    تعديل
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggle(p)}
+                    className="flex-1 rounded-xl font-bold"
+                  >
+                    {p.is_active ? "تعطيل" : "تفعيل"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDeleting(p)}
+                    className="flex-1 rounded-xl font-bold text-destructive"
+                  >
+                    حذف
+                  </Button>
                 </div>
               </div>
             )}
@@ -226,7 +370,16 @@ function AdminProductsPage() {
                 title="لا توجد منتجات"
                 hint="ابدأ بإضافة أول منتج إلى الكتالوج."
                 action={
-                  <Button type="button" onClick={() => navigate({ to: "/admin/product-editor", search: { id: null } })} className="h-12 gap-2 rounded-xl font-bold">
+                  <Button
+                    type="button"
+                    onClick={() =>
+                      navigate({
+                        to: "/admin/product-editor",
+                        search: { id: null },
+                      })
+                    }
+                    className="h-12 gap-2 rounded-xl font-bold"
+                  >
                     <Plus className="h-4 w-4" aria-hidden />
                     إضافة منتج
                   </Button>
@@ -256,7 +409,9 @@ function AdminProductsPage() {
               setDeleting(null);
               load();
             } catch (e) {
-              toast.error((e as { message?: string })?.message ?? "حصل خطأ، حاول تاني.");
+              toast.error(
+                (e as { message?: string })?.message ?? "حصل خطأ، حاول تاني.",
+              );
             }
           }}
         />

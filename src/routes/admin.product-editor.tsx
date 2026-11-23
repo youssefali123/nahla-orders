@@ -7,13 +7,25 @@ import { AdminShell } from "@/components/admin/AdminShell";
 import { ErrorState } from "@/components/admin/DataTable";
 import { ConfirmDialog, FormSection } from "@/components/admin/dialogs";
 import { Field, ImageUploader } from "@/components/admin/forms";
-import { NewOptionGroupButton, OptionGroupEditor, PricePreview } from "@/components/admin/options";
+import {
+  NewOptionGroupButton,
+  OptionGroupEditor,
+  PricePreview,
+} from "@/components/admin/options";
+import { PriceBlock } from "@/components/PriceBlock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { site } from "@/config/site";
 import {
   cleanupReplacedOptionImage,
   deleteProduct,
@@ -27,7 +39,19 @@ import {
   saveProductFilter,
   type ProductInput,
 } from "@/lib/admin";
-import type { Category, ConfiguredProduct, DisplayFilter, Subcategory } from "@/lib/catalog";
+import type {
+  Category,
+  ConfiguredProduct,
+  DisplayFilter,
+  Subcategory,
+} from "@/lib/catalog";
+import {
+  grossUnitPrice,
+  isOnOffer,
+  normalizeDiscountPercent,
+  normalizeExtraPrice,
+  unitPrice,
+} from "@/lib/pricing";
 
 export const Route = createFileRoute("/admin/product-editor")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -42,6 +66,8 @@ const EMPTY: ProductInput = {
   subcategory_id: null,
   name: "",
   price: 0,
+  extra_price: 0,
+  discount_percent: 0,
   icon: "",
   image_url: null,
   description: "",
@@ -73,7 +99,10 @@ function ProductEditorPage() {
   const load = useCallback(async () => {
     setFailed(false);
     try {
-      const [cats, subs] = await Promise.all([listCategoriesAdmin(), listSubcategoriesAdmin()]);
+      const [cats, subs] = await Promise.all([
+        listCategoriesAdmin(),
+        listSubcategoriesAdmin(),
+      ]);
       setCategories(cats);
       setSubcategories(subs);
       if (id) {
@@ -88,6 +117,8 @@ function ProductEditorPage() {
           subcategory_id: fetched.subcategory_id,
           name: fetched.name,
           price: Number(fetched.price),
+          extra_price: Number(fetched.extra_price ?? 0),
+          discount_percent: Number(fetched.discount_percent ?? 0),
           icon: fetched.icon ?? "",
           image_url: fetched.image_url,
           description: fetched.description ?? "",
@@ -117,11 +148,19 @@ function ProductEditorPage() {
     (async () => {
       try {
         let list: DisplayFilter[] = [];
-        if (subId) list = (await listFiltersAdmin("subcategory", subId)).filter((f) => f.is_active);
-        else if (catId) list = (await listFiltersAdmin("category", catId)).filter((f) => f.is_active);
+        if (subId)
+          list = (await listFiltersAdmin("subcategory", subId)).filter(
+            (f) => f.is_active,
+          );
+        else if (catId)
+          list = (await listFiltersAdmin("category", catId)).filter(
+            (f) => f.is_active,
+          );
         if (cancelled) return;
         setFilterOptions(list);
-        setFilterId((current) => (current && list.some((f) => f.id === current) ? current : null));
+        setFilterId((current) =>
+          current && list.some((f) => f.id === current) ? current : null,
+        );
       } catch {
         if (!cancelled) setFilterOptions([]);
       }
@@ -152,7 +191,11 @@ function ProductEditorPage() {
   }, [id]);
 
   function set<K extends keyof ProductInput>(key: K, value: ProductInput[K]) {
-    setForm((f) => ({ ...f, [key]: value, ...(key === "category_id" ? { subcategory_id: null } : {}) }));
+    setForm((f) => ({
+      ...f,
+      [key]: value,
+      ...(key === "category_id" ? { subcategory_id: null } : {}),
+    }));
     setDirty(true);
   }
 
@@ -160,7 +203,18 @@ function ProductEditorPage() {
     const problems: string[] = [];
     if (!form.name.trim()) problems.push("اسم المنتج مطلوب");
     if (!form.category_id) problems.push("اختار التصنيف");
-    if (!(form.price >= 0)) problems.push("السعر يجب أن يكون صفرًا أو أكثر");
+    if (!Number.isFinite(form.price) || form.price < 0)
+      problems.push("السعر يجب أن يكون صفرًا أو أكثر");
+    if (!Number.isFinite(form.extra_price) || form.extra_price < 0) {
+      problems.push("السعر الإضافي يجب أن يكون صفرًا أو أكثر");
+    }
+    if (
+      !Number.isFinite(form.discount_percent) ||
+      form.discount_percent < 0 ||
+      form.discount_percent > 100
+    ) {
+      problems.push("نسبة الخصم يجب أن تكون بين 0 و 100");
+    }
     return problems;
   }
 
@@ -174,15 +228,27 @@ function ProductEditorPage() {
     setSaving(true);
     try {
       const prevImage = product?.image_url ?? null;
-      const savedId = await saveProduct(id, { ...form, name: form.name.trim() });
+      const savedId = await saveProduct(id, {
+        ...form,
+        name: form.name.trim(),
+      });
       await saveProductFilter(savedId, filterId);
-      if (prevImage && prevImage !== form.image_url) await deleteStoredImage(prevImage);
+      if (prevImage && prevImage !== form.image_url)
+        await deleteStoredImage(prevImage);
       toast.success(id ? "تم حفظ المنتج بنجاح" : "تمت إضافة المنتج بنجاح");
       setDirty(false);
-      if (!id) navigate({ to: "/admin/product-editor", search: { id: savedId }, replace: true });
+      if (!id)
+        navigate({
+          to: "/admin/product-editor",
+          search: { id: savedId },
+          replace: true,
+        });
       else load();
     } catch (e) {
-      toast.error((e as { message?: string })?.message ?? "تعذر حفظ المنتج. يرجى المحاولة مرة أخرى.");
+      toast.error(
+        (e as { message?: string })?.message ??
+          "تعذر حفظ المنتج. يرجى المحاولة مرة أخرى.",
+      );
     } finally {
       setSaving(false);
     }
@@ -205,7 +271,11 @@ function ProductEditorPage() {
   }
 
   function resetForNew() {
-    setForm({ ...EMPTY, category_id: form.category_id, subcategory_id: form.subcategory_id });
+    setForm({
+      ...EMPTY,
+      category_id: form.category_id,
+      subcategory_id: form.subcategory_id,
+    });
     setProduct(null);
     setFilterId(null);
     setErrors([]);
@@ -215,10 +285,22 @@ function ProductEditorPage() {
     window.scrollTo(0, 0);
   }
 
-  const subOptions = subcategories.filter((s) => s.category_id === form.category_id);
+  const subOptions = subcategories.filter(
+    (s) => s.category_id === form.category_id,
+  );
+  const pricingInput = {
+    base: Number(form.price) || 0,
+    extra: normalizeExtraPrice(form.extra_price),
+    discountPercent: normalizeDiscountPercent(form.discount_percent),
+  };
+  const previewGross = grossUnitPrice(pricingInput);
+  const onOffer = isOnOffer(pricingInput);
   const previewPicks =
     product?.option_groups.flatMap((g) =>
-      g.options.slice(0, g.type === "single" ? 1 : 2).map((o) => ({ label: `${g.name}: ${o.name}`, delta: Number(o.price_delta) })),
+      g.options.slice(0, g.type === "single" ? 1 : 2).map((o) => ({
+        label: `${g.name}: ${o.name}`,
+        delta: Number(o.price_delta),
+      })),
     ) ?? [];
 
   return (
@@ -267,8 +349,12 @@ function ProductEditorPage() {
                 aria-labelledby="editor-errors-title"
                 className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4"
               >
-                <p id="editor-errors-title" className="font-extrabold text-destructive">
-                  يوجد {errors.length} {errors.length === 1 ? "مشكلة" : "مشاكل"} يجب حلها
+                <p
+                  id="editor-errors-title"
+                  className="font-extrabold text-destructive"
+                >
+                  يوجد {errors.length} {errors.length === 1 ? "مشكلة" : "مشاكل"}{" "}
+                  يجب حلها
                 </p>
                 <ul className="mt-1 list-disc space-y-0.5 pr-5 text-sm font-semibold text-destructive">
                   {errors.map((e, i) => (
@@ -280,22 +366,112 @@ function ProductEditorPage() {
 
             <FormSection title="معلومات المنتج">
               <Field id="pe-name" label="اسم المنتج" required>
-                <Input id="pe-name" value={form.name} onChange={(e) => set("name", e.target.value)} className="h-12 rounded-xl" placeholder="مثال: فرخة مشوية" />
+                <Input
+                  id="pe-name"
+                  value={form.name}
+                  onChange={(e) => set("name", e.target.value)}
+                  className="h-12 rounded-xl"
+                  placeholder="مثال: فرخة مشوية"
+                />
               </Field>
               <Field id="pe-desc" label="الوصف">
-                <Textarea id="pe-desc" value={form.description ?? ""} onChange={(e) => set("description", e.target.value)} className="min-h-20 rounded-xl" placeholder="وصف مختصر للمنتج" />
+                <Textarea
+                  id="pe-desc"
+                  value={form.description ?? ""}
+                  onChange={(e) => set("description", e.target.value)}
+                  className="min-h-20 rounded-xl"
+                  placeholder="وصف مختصر للمنتج"
+                />
               </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field id="pe-price" label="السعر الأساسي (جنيه)" required hint="سعر المنتج بدون أي إضافات">
-                  <Input id="pe-price" type="number" min={0} value={form.price} onChange={(e) => set("price", Number(e.target.value))} className="h-12 rounded-xl" inputMode="decimal" />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <Field
+                  id="pe-price"
+                  label="السعر الأساسي (جنيه)"
+                  required
+                  hint="سعر المنتج بدون أي إضافات"
+                >
+                  <Input
+                    id="pe-price"
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={form.price}
+                    onChange={(e) => set("price", Number(e.target.value))}
+                    className="h-12 rounded-xl"
+                    inputMode="decimal"
+                  />
                 </Field>
-                <Field id="pe-unit" label="الوحدة" hint="مثال: كيلو، علبة">
-                  <Input id="pe-unit" value={form.unit ?? ""} onChange={(e) => set("unit", e.target.value)} className="h-12 rounded-xl" placeholder="كيلو" />
+                <Field
+                  id="pe-extra"
+                  label="السعر الإضافي (جنيه)"
+                  hint="يضاف على السعر ويظهر كإضافة في رسالة الطلب"
+                >
+                  <Input
+                    id="pe-extra"
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={form.extra_price}
+                    onChange={(e) => set("extra_price", Number(e.target.value))}
+                    className="h-12 rounded-xl"
+                    inputMode="decimal"
+                  />
+                </Field>
+                <Field
+                  id="pe-discount"
+                  label="نسبة الخصم (%)"
+                  hint="0 يعني بدون عرض. العرض مستمر حتى يتم إلغاؤه"
+                >
+                  <Input
+                    id="pe-discount"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="any"
+                    value={form.discount_percent}
+                    onChange={(e) =>
+                      set("discount_percent", Number(e.target.value))
+                    }
+                    className="h-12 rounded-xl"
+                    inputMode="decimal"
+                  />
                 </Field>
               </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-muted/60 p-3">
+                <span className="text-xs font-bold text-muted-foreground">
+                  معاينة السعر للعميل:
+                </span>
+                <div className="flex items-center gap-2">
+                  <PriceBlock
+                    price={pricingInput.base}
+                    extraPrice={pricingInput.extra}
+                    discountPercent={pricingInput.discountPercent}
+                    size="md"
+                  />
+                  {onOffer && (
+                    <span className="text-xs font-semibold text-muted-foreground">
+                      (قبل الخصم: {previewGross} {site.currency})
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <Field id="pe-unit" label="الوحدة" hint="مثال: كيلو، علبة">
+                <Input
+                  id="pe-unit"
+                  value={form.unit ?? ""}
+                  onChange={(e) => set("unit", e.target.value)}
+                  className="h-12 rounded-xl"
+                  placeholder="كيلو"
+                />
+              </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field id="pe-cat" label="التصنيف" required>
-                  <Select value={form.category_id} onValueChange={(v) => set("category_id", v)}>
+                  <Select
+                    value={form.category_id}
+                    onValueChange={(v) => set("category_id", v)}
+                  >
                     <SelectTrigger id="pe-cat" className="h-12 rounded-xl">
                       <SelectValue placeholder="اختار التصنيف" />
                     </SelectTrigger>
@@ -309,7 +485,12 @@ function ProductEditorPage() {
                   </Select>
                 </Field>
                 <Field id="pe-sub" label="التصنيف الفرعي" hint="اختياري">
-                  <Select value={form.subcategory_id ?? "none"} onValueChange={(v) => set("subcategory_id", v === "none" ? null : v)}>
+                  <Select
+                    value={form.subcategory_id ?? "none"}
+                    onValueChange={(v) =>
+                      set("subcategory_id", v === "none" ? null : v)
+                    }
+                  >
                     <SelectTrigger id="pe-sub" className="h-12 rounded-xl">
                       <SelectValue placeholder="بدون" />
                     </SelectTrigger>
@@ -325,8 +506,15 @@ function ProductEditorPage() {
                 </Field>
               </div>
               {filterOptions.length > 0 && (
-                <Field id="pe-filter" label="فلتر العرض" hint="يظهر المنتج تحت هذا التصنيف في شريط الفلاتر">
-                  <Select value={filterId ?? "none"} onValueChange={(v) => setFilterId(v === "none" ? null : v)}>
+                <Field
+                  id="pe-filter"
+                  label="فلتر العرض"
+                  hint="يظهر المنتج تحت هذا التصنيف في شريط الفلاتر"
+                >
+                  <Select
+                    value={filterId ?? "none"}
+                    onValueChange={(v) => setFilterId(v === "none" ? null : v)}
+                  >
                     <SelectTrigger id="pe-filter" className="h-12 rounded-xl">
                       <SelectValue placeholder="بدون فلتر" />
                     </SelectTrigger>
@@ -342,24 +530,54 @@ function ProductEditorPage() {
                 </Field>
               )}
               <div className="grid grid-cols-2 gap-3">
-                <Field id="pe-icon" label="الأيقونة" hint="إيموجي يظهر عند غياب الصورة">
-                  <Input id="pe-icon" value={form.icon ?? ""} onChange={(e) => set("icon", e.target.value)} className="h-12 rounded-xl" placeholder="🍗" />
+                <Field
+                  id="pe-icon"
+                  label="الأيقونة"
+                  hint="إيموجي يظهر عند غياب الصورة"
+                >
+                  <Input
+                    id="pe-icon"
+                    value={form.icon ?? ""}
+                    onChange={(e) => set("icon", e.target.value)}
+                    className="h-12 rounded-xl"
+                    placeholder="🍗"
+                  />
                 </Field>
                 <Field id="pe-order" label="الترتيب">
-                  <Input id="pe-order" type="number" value={form.sort_order} onChange={(e) => set("sort_order", Number(e.target.value))} className="h-12 rounded-xl" inputMode="numeric" />
+                  <Input
+                    id="pe-order"
+                    type="number"
+                    value={form.sort_order}
+                    onChange={(e) => set("sort_order", Number(e.target.value))}
+                    className="h-12 rounded-xl"
+                    inputMode="numeric"
+                  />
                 </Field>
               </div>
               <Field id="pe-image" label="الصورة">
-                <ImageUploader id="pe-image" prefix="products" value={form.image_url ?? null} onChange={(url) => set("image_url", url ?? null)} />
+                <ImageUploader
+                  id="pe-image"
+                  prefix="products"
+                  value={form.image_url ?? null}
+                  onChange={(url) => set("image_url", url ?? null)}
+                />
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex items-center justify-between gap-2 rounded-xl bg-muted p-3">
                   <span className="text-sm font-bold">مفعل</span>
-                  <Switch checked={form.is_active} onCheckedChange={(v) => set("is_active", v)} aria-label="حالة المنتج" />
+                  <Switch
+                    checked={form.is_active}
+                    onCheckedChange={(v) => set("is_active", v)}
+                    aria-label="حالة المنتج"
+                  />
                 </div>
                 <div className="flex items-center justify-between gap-2 rounded-xl bg-muted p-3">
                   <span className="text-sm font-bold">الأكثر طلبًا 🔥</span>
-                  <Switch checked={form.is_featured} onCheckedChange={(v) => set("is_featured", v)} aria-label="منتج مميز" />
+                  <Switch
+                    checked={form.is_featured}
+                    onCheckedChange={(v) => set("is_featured", v)}
+                    aria-label="منتج مميز"
+                  />
                 </div>
               </div>
             </FormSection>
@@ -372,13 +590,22 @@ function ProductEditorPage() {
                 product && product.option_groups.length > 0 ? (
                   <div className="space-y-3">
                     {product.option_groups.map((group) => (
-                      <OptionGroupEditor key={group.id} productId={id} group={group} onChanged={load} />
+                      <OptionGroupEditor
+                        key={group.id}
+                        productId={id}
+                        group={group}
+                        onChanged={load}
+                      />
                     ))}
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-border p-6 text-center">
-                    <p className="font-extrabold">لا توجد مجموعات خيارات لهذا المنتج.</p>
-                    <p className="mt-1 text-sm text-muted-foreground">أضف مجموعة مثل: الحجم، الطعم، أو الإضافات.</p>
+                    <p className="font-extrabold">
+                      لا توجد مجموعات خيارات لهذا المنتج.
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      أضف مجموعة مثل: الحجم، الطعم، أو الإضافات.
+                    </p>
                   </div>
                 )
               ) : (
@@ -387,14 +614,26 @@ function ProductEditorPage() {
                 </p>
               )}
               {id && <NewOptionGroupButton productId={id} onChanged={load} />}
-              {id && product && <PricePreview base={form.price} picks={previewPicks} />}
+              {id && product && (
+                <PricePreview base={form.price} picks={previewPicks} />
+              )}
             </FormSection>
 
             <div className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-border bg-card/95 p-3 backdrop-blur lg:static lg:border-0 lg:bg-transparent lg:p-0">
-              <Button type="button" variant="outline" onClick={back} className="h-13 flex-1 rounded-xl py-3.5 font-bold lg:flex-none lg:px-8">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={back}
+                className="h-13 flex-1 rounded-xl py-3.5 font-bold lg:flex-none lg:px-8"
+              >
                 {dirty ? "تجاهل" : "رجوع"}
               </Button>
-              <Button type="button" onClick={save} disabled={saving} className="h-13 flex-[2] rounded-xl py-3.5 text-base font-extrabold lg:flex-none lg:px-10">
+              <Button
+                type="button"
+                onClick={save}
+                disabled={saving}
+                className="h-13 flex-[2] rounded-xl py-3.5 text-base font-extrabold lg:flex-none lg:px-10"
+              >
                 {saving ? "جاري الحفظ..." : "حفظ المنتج"}
               </Button>
             </div>
@@ -409,8 +648,8 @@ function ProductEditorPage() {
           onConfirm={async () => {
             if (!id) return;
             try {
-              const doomedOptions = (product?.option_groups ?? []).flatMap((g) =>
-                g.options.map((o) => o.image_url ?? null),
+              const doomedOptions = (product?.option_groups ?? []).flatMap(
+                (g) => g.options.map((o) => o.image_url ?? null),
               );
               const doomedProduct = product?.image_url ?? null;
               await deleteProduct(id);
@@ -421,7 +660,9 @@ function ProductEditorPage() {
               toast.success("تم حذف المنتج");
               navigate({ to: "/admin/products" });
             } catch (e) {
-              toast.error((e as { message?: string })?.message ?? "حصل خطأ، حاول تاني.");
+              toast.error(
+                (e as { message?: string })?.message ?? "حصل خطأ، حاول تاني.",
+              );
               setConfirmDelete(false);
             }
           }}
@@ -432,7 +673,11 @@ function ProductEditorPage() {
           title="تجاهل التغييرات؟"
           impact="لديك تغييرات غير محفوظة ستفقدها."
           confirmLabel={leaveTo === "new" ? "تجاهل وابدأ جديد" : "تجاهل ورجوع"}
-          onConfirm={() => (leaveTo === "new" ? resetForNew() : navigate({ to: "/admin/products" }))}
+          onConfirm={() =>
+            leaveTo === "new"
+              ? resetForNew()
+              : navigate({ to: "/admin/products" })
+          }
         />
       </AdminShell>
     </AdminGuard>

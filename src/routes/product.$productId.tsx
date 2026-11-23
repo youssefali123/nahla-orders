@@ -1,14 +1,28 @@
-import { createFileRoute, Link, notFound, redirect, useRouter } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  notFound,
+  redirect,
+  useRouter,
+} from "@tanstack/react-router";
 import { Minus, Plus, ShoppingCart } from "lucide-react";
 import { useState } from "react";
 import { toast } from "react-hot-toast";
 import { BackButton } from "@/components/BackButton";
+import { PriceBlock } from "@/components/PriceBlock";
 import { site, SUPABASE_ENABLED } from "@/config/site";
-import { getProduct, type ConfiguredGroup, type ConfiguredProduct } from "@/lib/catalog";
+import {
+  getProduct,
+  type ConfiguredGroup,
+  type ConfiguredProduct,
+} from "@/lib/catalog";
 import { useCart } from "@/lib/cart";
+import { lineTotal, unitPrice } from "@/lib/pricing";
 
 export const Route = createFileRoute("/product/$productId")({
-  loader: async ({ params }): Promise<{ product: ConfiguredProduct | null; error: string | null }> => {
+  loader: async ({
+    params,
+  }): Promise<{ product: ConfiguredProduct | null; error: string | null }> => {
     if (!SUPABASE_ENABLED) {
       throw redirect({ to: "/" });
     }
@@ -57,16 +71,25 @@ function ProductPage() {
         setPickOrder((order) => order.filter((id) => id !== optionId));
       } else {
         setPicked({ ...picked, [group.id]: [optionId] });
-        setPickOrder((order) => [...order.filter((id) => !current.includes(id)), optionId]);
+        setPickOrder((order) => [
+          ...order.filter((id) => !current.includes(id)),
+          optionId,
+        ]);
       }
       return;
     }
     if (current.includes(optionId)) {
-      setPicked({ ...picked, [group.id]: current.filter((id) => id !== optionId) });
+      setPicked({
+        ...picked,
+        [group.id]: current.filter((id) => id !== optionId),
+      });
       setPickOrder((order) => order.filter((id) => id !== optionId));
       return;
     }
-    if (group.max_selections !== null && current.length >= group.max_selections) {
+    if (
+      group.max_selections !== null &&
+      current.length >= group.max_selections
+    ) {
       toast.error(`اختار بحد أقصى ${group.max_selections} من ${group.name}`);
       return;
     }
@@ -74,17 +97,26 @@ function ProductPage() {
     setPickOrder((order) => [...order, optionId]);
   }
 
-  const optionById = new Map(groups.flatMap((g) => g.options.map((o) => [o.id, o] as const)));
+  const optionById = new Map(
+    groups.flatMap((g) => g.options.map((o) => [o.id, o] as const)),
+  );
   const displayImage =
-    [...pickOrder].reverse().map((id) => optionById.get(id)?.image_url ?? null).find((url) => !!url) ?? null;
+    [...pickOrder]
+      .reverse()
+      .map((id) => optionById.get(id)?.image_url ?? null)
+      .find((url) => !!url) ?? null;
 
   function groupError(group: ConfiguredGroup): string | null {
     if (!triedSubmit || group.min_selections <= 0) return null;
     const count = (picked[group.id] ?? []).length;
-    return count >= group.min_selections ? null : `اختار ${group.min_selections === 1 ? "اختيار واحد" : `بحد أدنى ${group.min_selections}`} من ${group.name}`;
+    return count >= group.min_selections
+      ? null
+      : `اختار ${group.min_selections === 1 ? "اختيار واحد" : `بحد أدنى ${group.min_selections}`} من ${group.name}`;
   }
 
-  const selectionValid = groups.every((g) => (picked[g.id] ?? []).length >= g.min_selections);
+  const selectionValid = groups.every(
+    (g) => (picked[g.id] ?? []).length >= g.min_selections,
+  );
 
   const selectedOptions = groups.flatMap((g) =>
     g.options
@@ -98,7 +130,13 @@ function ProductPage() {
       })),
   );
 
-  const unitPrice = (product?.price ?? 0) + selectedOptions.reduce((n, s) => n + s.priceDelta, 0);
+  const pricing = {
+    base: product?.price ?? 0,
+    extra: product?.extra_price ?? 0,
+    discountPercent: product?.discount_percent ?? 0,
+  };
+  const optionDeltas = selectedOptions.reduce((n, s) => n + s.priceDelta, 0);
+  const currentUnitPrice = product ? unitPrice(pricing, optionDeltas) : 0;
 
   if (error || !product) {
     if (!error) throw notFound();
@@ -129,7 +167,9 @@ function ProductPage() {
         <div className="rounded-3xl bg-card p-8 text-center shadow-card">
           <p className="text-5xl">🐝</p>
           <h1 className="mt-3 text-xl font-extrabold">{product.name}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">المنتج غير متاح حالياً.</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            المنتج غير متاح حالياً.
+          </p>
           <Link
             to="/"
             className="mt-6 inline-flex h-12 items-center justify-center rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground"
@@ -147,22 +187,41 @@ function ProductPage() {
         <BackButton />
       </div>
       <div className="overflow-hidden rounded-3xl bg-card shadow-card">
-        <div className="grid aspect-square w-full place-items-center overflow-hidden bg-muted text-[7rem] sm:aspect-[16/9]" aria-hidden>
+        <div
+          className="grid aspect-square w-full place-items-center overflow-hidden bg-muted text-[7rem] sm:aspect-[16/9]"
+          aria-hidden
+        >
           {displayImage ? (
-            <img key={displayImage} src={displayImage} alt="" className="anim-page h-full w-full object-cover" />
+            <img
+              key={displayImage}
+              src={displayImage}
+              alt=""
+              className="anim-page h-full w-full object-cover"
+            />
           ) : product.image_url ? (
-            <img src={product.image_url} alt="" className="h-full w-full object-cover" />
+            <img
+              src={product.image_url}
+              alt=""
+              className="h-full w-full object-cover"
+            />
           ) : (
             (product.icon ?? "🐝")
           )}
         </div>
         <div className="space-y-3 p-4">
           <h1 className="text-2xl font-extrabold">{product.name}</h1>
-          {product.unit && <p className="text-sm text-muted-foreground">{product.unit}</p>}
-          <p className="text-2xl font-extrabold text-primary-dark">
-            {product.price} {site.currency}
-          </p>
-          {product.description && <p className="text-sm leading-relaxed text-muted-foreground">{product.description}</p>}
+          <PriceBlock
+            price={product.price}
+            extraPrice={product.extra_price}
+            discountPercent={product.discount_percent}
+            unit={product.unit}
+            size="lg"
+          />
+          {product.description && (
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {product.description}
+            </p>
+          )}
 
           {groups.map((group) => {
             const err = groupError(group);
@@ -171,7 +230,9 @@ function ProductPage() {
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-sm font-extrabold">
                     {group.name}
-                    {group.min_selections > 0 && <span className="text-destructive"> *</span>}
+                    {group.min_selections > 0 && (
+                      <span className="text-destructive"> *</span>
+                    )}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {group.type === "single"
@@ -209,12 +270,20 @@ function ProductPage() {
                           />
                         )}
                         {option.name}
-                        {delta !== 0 && <span className="text-xs opacity-80">{delta > 0 ? `+${delta}` : delta}</span>}
+                        {delta !== 0 && (
+                          <span className="text-xs opacity-80">
+                            {delta > 0 ? `+${delta}` : delta}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
                 </div>
-                {err && <p className="mt-1.5 text-xs font-semibold text-destructive">{err}</p>}
+                {err && (
+                  <p className="mt-1.5 text-xs font-semibold text-destructive">
+                    {err}
+                  </p>
+                )}
               </div>
             );
           })}
@@ -230,7 +299,9 @@ function ProductPage() {
               >
                 <Plus className="h-4 w-4" />
               </button>
-              <span className="w-10 text-center text-base font-extrabold">{qty}</span>
+              <span className="w-10 text-center text-base font-extrabold">
+                {qty}
+              </span>
               <button
                 type="button"
                 aria-label="تقليل"
@@ -245,7 +316,7 @@ function ProductPage() {
           <div className="flex items-center justify-between pt-1 text-base font-extrabold">
             <span>الإجمالي</span>
             <span className="text-primary-dark">
-              {unitPrice * qty} {site.currency}
+              {lineTotal(pricing, qty, optionDeltas)} {site.currency}
             </span>
           </div>
 
@@ -263,6 +334,8 @@ function ProductPage() {
                     id: product.id,
                     name: product.name,
                     price: product.price,
+                    extraPrice: product.extra_price,
+                    discountPercent: product.discount_percent,
                     icon: product.icon ?? "🐝",
                     image: product.image_url,
                     selectedOptions,

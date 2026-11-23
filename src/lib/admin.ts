@@ -1,5 +1,10 @@
-import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import {
+  createClient,
+  type SupabaseClient,
+  type User,
+} from "@supabase/supabase-js";
 import { compressImage } from "compressly";
+import { normalizeDiscountPercent, normalizeExtraPrice } from "./pricing";
 import type {
   Banner,
   Category,
@@ -18,12 +23,16 @@ function toAdminError(fallback: string, cause: unknown): AdminError {
   const code = (cause as { code?: string } | null)?.code;
   if (code === "23505") {
     const detail = String((cause as { details?: string }).details ?? "");
-    if (detail.includes("product_options")) return { message: "اسم الخيار مستخدم بالفعل داخل هذه المجموعة.", cause };
-    if (detail.includes("subcategory_filters")) return { message: "اسم الفلتر مستخدم بالفعل في هذا القسم.", cause };
+    if (detail.includes("product_options"))
+      return { message: "اسم الخيار مستخدم بالفعل داخل هذه المجموعة.", cause };
+    if (detail.includes("subcategory_filters"))
+      return { message: "اسم الفلتر مستخدم بالفعل في هذا القسم.", cause };
     return { message: "هذا الاسم مستخدم بالفعل.", cause };
   }
-  if (code === "23514") return { message: "القيم المدخلة غير صالحة لهذه المجموعة.", cause };
-  if (code === "42501") return { message: "غير مصرح لك بتنفيذ هذه العملية.", cause };
+  if (code === "23514")
+    return { message: "القيم المدخلة غير صالحة لهذه المجموعة.", cause };
+  if (code === "42501")
+    return { message: "غير مصرح لك بتنفيذ هذه العملية.", cause };
   return { message: fallback, cause };
 }
 
@@ -33,18 +42,32 @@ let sessionClient: SupabaseClient | null = null;
 export function getSessionClient(): SupabaseClient {
   if (sessionClient) return sessionClient;
   const url = import.meta.env["VITE_SUPABASE_URL"] as string | undefined;
-  const anonKey = import.meta.env["VITE_SUPABASE_ANON_KEY"] as string | undefined;
+  const anonKey = import.meta.env["VITE_SUPABASE_ANON_KEY"] as
+    string | undefined;
   if (!url || !anonKey) {
-    throw new Error("إعدادات Supabase ناقصة. أضف VITE_SUPABASE_URL و VITE_SUPABASE_ANON_KEY إلى ملف .env.local.");
+    throw new Error(
+      "إعدادات Supabase ناقصة. أضف VITE_SUPABASE_URL و VITE_SUPABASE_ANON_KEY إلى ملف .env.local.",
+    );
   }
   sessionClient = createClient(url, anonKey, {
-    auth: { storageKey: "nahla-admin-auth", persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+    auth: {
+      storageKey: "nahla-admin-auth",
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
+    },
   });
   return sessionClient;
 }
 
-export async function signInManager(email: string, password: string): Promise<void> {
-  const { error } = await getSessionClient().auth.signInWithPassword({ email, password });
+export async function signInManager(
+  email: string,
+  password: string,
+): Promise<void> {
+  const { error } = await getSessionClient().auth.signInWithPassword({
+    email,
+    password,
+  });
   if (error) throw toAdminError("بيانات الدخول غير صحيحة.", error);
   const session = await getManagerSession();
   if (!session) {
@@ -71,14 +94,20 @@ export async function signOutManager(): Promise<void> {
   await getSessionClient().auth.signOut();
 }
 
-export async function onManagerAuthChange(callback: (session: { user: User } | null) => void) {
+export async function onManagerAuthChange(
+  callback: (session: { user: User } | null) => void,
+) {
   const client = getSessionClient();
   const { data } = client.auth.onAuthStateChange(async (_event, session) => {
     if (!session?.user) {
       callback(null);
       return;
     }
-    const { data: profile } = await client.from("admin_profiles").select("id").eq("id", session.user.id).maybeSingle();
+    const { data: profile } = await client
+      .from("admin_profiles")
+      .select("id")
+      .eq("id", session.user.id)
+      .maybeSingle();
     callback(profile ? { user: session.user } : null);
   });
   return () => data.subscription.unsubscribe();
@@ -89,26 +118,52 @@ const ORDER = { ascending: true };
 // ---------- Unfiltered reads (inactive included) ----------
 
 export async function listCategoriesAdmin(): Promise<Category[]> {
-  const { data, error } = await getSessionClient().from("categories").select("*").order("sort_order", ORDER);
+  const { data, error } = await getSessionClient()
+    .from("categories")
+    .select("*")
+    .order("sort_order", ORDER);
   if (error) throw toAdminError("تعذر تحميل التصنيفات.", error);
-  return (data ?? []) as Category[];
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+    ...(row as unknown as Category),
+    product_layout: row["product_layout"] === "list" ? "list" : "grid",
+  }));
 }
 
-export async function listSubcategoriesAdmin(categoryId?: string): Promise<Subcategory[]> {
-  let query = getSessionClient().from("subcategories").select("*").order("sort_order", ORDER);
+export async function listSubcategoriesAdmin(
+  categoryId?: string,
+): Promise<Subcategory[]> {
+  let query = getSessionClient()
+    .from("subcategories")
+    .select("*")
+    .order("sort_order", ORDER);
   if (categoryId) query = query.eq("category_id", categoryId);
   const { data, error } = await query;
   if (error) throw toAdminError("تعذر تحميل التصنيفات الفرعية.", error);
-  return (data ?? []) as Subcategory[];
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+    ...(row as unknown as Subcategory),
+    product_layout: row["product_layout"] === "list" ? "list" : "grid",
+  }));
 }
 
-export type ProductFilters = { categoryId?: string; subcategoryId?: string; isActive?: boolean; query?: string };
+export type ProductFilters = {
+  categoryId?: string;
+  subcategoryId?: string;
+  isActive?: boolean;
+  query?: string;
+};
 
-export async function listProductsAdmin(filters: ProductFilters = {}): Promise<Product[]> {
-  let query = getSessionClient().from("products").select("*").order("sort_order", ORDER);
+export async function listProductsAdmin(
+  filters: ProductFilters = {},
+): Promise<Product[]> {
+  let query = getSessionClient()
+    .from("products")
+    .select("*")
+    .order("sort_order", ORDER);
   if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
-  if (filters.subcategoryId) query = query.eq("subcategory_id", filters.subcategoryId);
-  if (filters.isActive !== undefined) query = query.eq("is_active", filters.isActive);
+  if (filters.subcategoryId)
+    query = query.eq("subcategory_id", filters.subcategoryId);
+  if (filters.isActive !== undefined)
+    query = query.eq("is_active", filters.isActive);
   if (filters.query?.trim()) {
     const q = filters.query.trim().replace(/[%_\\]/g, (m) => `\\${m}`);
     query = query.ilike("name", `%${q}%`);
@@ -117,25 +172,44 @@ export async function listProductsAdmin(filters: ProductFilters = {}): Promise<P
   if (error) throw toAdminError("تعذر تحميل المنتجات.", error);
   return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
     ...(row as unknown as Product),
-    price: Number((row as { price: string | number }).price),
+    price: Number((row as { price: string | number }).price) || 0,
+    extra_price: normalizeExtraPrice(
+      (row as { extra_price?: unknown }).extra_price,
+    ),
+    discount_percent: normalizeDiscountPercent(
+      (row as { discount_percent?: unknown }).discount_percent,
+    ),
   }));
 }
 
-export async function getProductAdmin(id: string): Promise<ConfiguredProduct | null> {
+export async function getProductAdmin(
+  id: string,
+): Promise<ConfiguredProduct | null> {
   const client = getSessionClient();
-  const { data: product, error } = await client.from("products").select("*").eq("id", id).maybeSingle();
+  const { data: product, error } = await client
+    .from("products")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
   if (error) throw toAdminError("تعذر تحميل المنتج.", error);
   if (!product) return null;
   const base = {
     ...(product as unknown as Product),
-    price: Number((product as { price: string | number }).price),
+    price: Number((product as { price: string | number }).price) || 0,
+    extra_price: normalizeExtraPrice(
+      (product as { extra_price?: unknown }).extra_price,
+    ),
+    discount_percent: normalizeDiscountPercent(
+      (product as { discount_percent?: unknown }).discount_percent,
+    ),
   };
   const { data: groups, error: groupsError } = await client
     .from("product_option_groups")
     .select("*")
     .eq("product_id", id)
     .order("sort_order", ORDER);
-  if (groupsError) throw toAdminError("تعذر تحميل مجموعات الخيارات.", groupsError);
+  if (groupsError)
+    throw toAdminError("تعذر تحميل مجموعات الخيارات.", groupsError);
   const groupIds = ((groups ?? []) as { id: string }[]).map((g) => g.id);
   let options: ProductOption[] = [];
   if (groupIds.length > 0) {
@@ -147,7 +221,9 @@ export async function getProductAdmin(id: string): Promise<ConfiguredProduct | n
     if (optsError) throw toAdminError("تعذر تحميل الاختيارات.", optsError);
     options = ((opts ?? []) as Record<string, unknown>[]).map((row) => ({
       ...(row as unknown as ProductOption),
-      price_delta: Number((row as { price_delta: string | number }).price_delta),
+      price_delta: Number(
+        (row as { price_delta: string | number }).price_delta,
+      ),
     }));
   }
   return {
@@ -160,22 +236,44 @@ export async function getProductAdmin(id: string): Promise<ConfiguredProduct | n
 }
 
 export async function listBannersAdmin(): Promise<Banner[]> {
-  const { data, error } = await getSessionClient().from("banners").select("*").order("sort_order", ORDER);
+  const { data, error } = await getSessionClient()
+    .from("banners")
+    .select("*")
+    .order("sort_order", ORDER);
   if (error) throw toAdminError("تعذر تحميل البنرات.", error);
   return (data ?? []) as Banner[];
 }
 
-export async function dashboardCounts(): Promise<{ categories: number; products: number; banners: number; configurable: number }> {
+export async function dashboardCounts(): Promise<{
+  categories: number;
+  products: number;
+  banners: number;
+  configurable: number;
+}> {
   const client = getSessionClient();
   const [cats, prods, banners, groups] = await Promise.all([
-    client.from("categories").select("id", { count: "exact", head: true }).eq("is_active", true),
-    client.from("products").select("id", { count: "exact", head: true }).eq("is_active", true),
-    client.from("banners").select("id", { count: "exact", head: true }).eq("is_active", true),
-    client.from("product_option_groups").select("product_id").eq("is_active", true),
+    client
+      .from("categories")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true),
+    client
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true),
+    client
+      .from("banners")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true),
+    client
+      .from("product_option_groups")
+      .select("product_id")
+      .eq("is_active", true),
   ]);
   const err = cats.error ?? prods.error ?? banners.error ?? groups.error;
   if (err) throw toAdminError("تعذر تحميل الإحصائيات.", err);
-  const configurable = new Set(((groups.data ?? []) as { product_id: string }[]).map((g) => g.product_id)).size;
+  const configurable = new Set(
+    ((groups.data ?? []) as { product_id: string }[]).map((g) => g.product_id),
+  ).size;
   return {
     categories: cats.count ?? 0,
     products: prods.count ?? 0,
@@ -194,11 +292,18 @@ export type CategoryInput = {
   is_active: boolean;
   type: "normal" | "custom_order";
   has_filters: boolean;
+  product_layout: "grid" | "list";
 };
 
-export async function saveCategory(id: string | null, input: CategoryInput): Promise<void> {
+export async function saveCategory(
+  id: string | null,
+  input: CategoryInput,
+): Promise<void> {
   const client = getSessionClient();
-  const payload = { ...input };
+  const payload = {
+    ...input,
+    product_layout: input.product_layout === "list" ? "list" : "grid",
+  };
   const { error } =
     id === null
       ? await client.from("categories").insert(payload)
@@ -207,7 +312,10 @@ export async function saveCategory(id: string | null, input: CategoryInput): Pro
 }
 
 export async function deleteCategory(id: string): Promise<void> {
-  const { error } = await getSessionClient().from("categories").delete().eq("id", id);
+  const { error } = await getSessionClient()
+    .from("categories")
+    .delete()
+    .eq("id", id);
   if (error) throw toAdminError("تعذر حذف التصنيف.", error);
 }
 
@@ -220,19 +328,30 @@ export type SubcategoryInput = {
   is_active: boolean;
   requires_preorder: boolean;
   has_filters: boolean;
+  product_layout: "grid" | "list";
 };
 
-export async function saveSubcategory(id: string | null, input: SubcategoryInput): Promise<void> {
+export async function saveSubcategory(
+  id: string | null,
+  input: SubcategoryInput,
+): Promise<void> {
   const client = getSessionClient();
+  const payload = {
+    ...input,
+    product_layout: input.product_layout === "list" ? "list" : "grid",
+  };
   const { error } =
     id === null
-      ? await client.from("subcategories").insert(input)
-      : await client.from("subcategories").update(input).eq("id", id);
+      ? await client.from("subcategories").insert(payload)
+      : await client.from("subcategories").update(payload).eq("id", id);
   if (error) throw toAdminError("تعذر حفظ التصنيف الفرعي.", error);
 }
 
 export async function deleteSubcategory(id: string): Promise<void> {
-  const { error } = await getSessionClient().from("subcategories").delete().eq("id", id);
+  const { error } = await getSessionClient()
+    .from("subcategories")
+    .delete()
+    .eq("id", id);
   if (error) throw toAdminError("تعذر حذف التصنيف الفرعي.", error);
 }
 
@@ -241,6 +360,8 @@ export type ProductInput = {
   subcategory_id: string | null;
   name: string;
   price: number;
+  extra_price: number;
+  discount_percent: number;
   icon?: string | null;
   image_url?: string | null;
   description?: string | null;
@@ -250,20 +371,35 @@ export type ProductInput = {
   is_featured: boolean;
 };
 
-export async function saveProduct(id: string | null, input: ProductInput): Promise<string> {
+export async function saveProduct(
+  id: string | null,
+  input: ProductInput,
+): Promise<string> {
   const client = getSessionClient();
+  const payload = {
+    ...input,
+    extra_price: normalizeExtraPrice(input.extra_price),
+    discount_percent: normalizeDiscountPercent(input.discount_percent),
+  };
   if (id === null) {
-    const { data, error } = await client.from("products").insert(input).select("id").single();
+    const { data, error } = await client
+      .from("products")
+      .insert(payload)
+      .select("id")
+      .single();
     if (error) throw toAdminError("تعذر حفظ المنتج.", error);
     return (data as { id: string }).id;
   }
-  const { error } = await client.from("products").update(input).eq("id", id);
+  const { error } = await client.from("products").update(payload).eq("id", id);
   if (error) throw toAdminError("تعذر حفظ المنتج.", error);
   return id;
 }
 
 export async function deleteProduct(id: string): Promise<void> {
-  const { error } = await getSessionClient().from("products").delete().eq("id", id);
+  const { error } = await getSessionClient()
+    .from("products")
+    .delete()
+    .eq("id", id);
   if (error) throw toAdminError("تعذر حذف المنتج.", error);
 }
 
@@ -276,7 +412,11 @@ export type OptionGroupInput = {
   is_active: boolean;
 };
 
-export async function saveOptionGroup(productId: string, id: string | null, input: OptionGroupInput): Promise<string> {
+export async function saveOptionGroup(
+  productId: string,
+  id: string | null,
+  input: OptionGroupInput,
+): Promise<string> {
   const client = getSessionClient();
   if (id === null) {
     const { data, error } = await client
@@ -287,13 +427,19 @@ export async function saveOptionGroup(productId: string, id: string | null, inpu
     if (error) throw toAdminError("تعذر حفظ المجموعة.", error);
     return (data as { id: string }).id;
   }
-  const { error } = await client.from("product_option_groups").update(input).eq("id", id);
+  const { error } = await client
+    .from("product_option_groups")
+    .update(input)
+    .eq("id", id);
   if (error) throw toAdminError("تعذر حفظ المجموعة.", error);
   return id;
 }
 
 export async function deleteOptionGroup(id: string): Promise<void> {
-  const { error } = await getSessionClient().from("product_option_groups").delete().eq("id", id);
+  const { error } = await getSessionClient()
+    .from("product_option_groups")
+    .delete()
+    .eq("id", id);
   if (error) throw toAdminError("تعذر حذف المجموعة.", error);
 }
 
@@ -305,7 +451,11 @@ export type ProductOptionInput = {
   is_active: boolean;
 };
 
-export async function saveOption(groupId: string, id: string | null, input: ProductOptionInput): Promise<string> {
+export async function saveOption(
+  groupId: string,
+  id: string | null,
+  input: ProductOptionInput,
+): Promise<string> {
   const client = getSessionClient();
   if (id === null) {
     const { data, error } = await client
@@ -316,13 +466,19 @@ export async function saveOption(groupId: string, id: string | null, input: Prod
     if (error) throw toAdminError("تعذر حفظ الاختيار.", error);
     return (data as { id: string }).id;
   }
-  const { error } = await client.from("product_options").update(input).eq("id", id);
+  const { error } = await client
+    .from("product_options")
+    .update(input)
+    .eq("id", id);
   if (error) throw toAdminError("تعذر حفظ الاختيار.", error);
   return id;
 }
 
 export async function deleteOption(id: string): Promise<void> {
-  const { error } = await getSessionClient().from("product_options").delete().eq("id", id);
+  const { error } = await getSessionClient()
+    .from("product_options")
+    .delete()
+    .eq("id", id);
   if (error) throw toAdminError("تعذر حذف الاختيار.", error);
 }
 
@@ -336,15 +492,23 @@ export type BannerInput = {
   is_active: boolean;
 };
 
-export async function saveBanner(id: string | null, input: BannerInput): Promise<void> {
+export async function saveBanner(
+  id: string | null,
+  input: BannerInput,
+): Promise<void> {
   const client = getSessionClient();
   const { error } =
-    id === null ? await client.from("banners").insert(input) : await client.from("banners").update(input).eq("id", id);
+    id === null
+      ? await client.from("banners").insert(input)
+      : await client.from("banners").update(input).eq("id", id);
   if (error) throw toAdminError("تعذر حفظ البنر.", error);
 }
 
 export async function deleteBanner(id: string): Promise<void> {
-  const { error } = await getSessionClient().from("banners").delete().eq("id", id);
+  const { error } = await getSessionClient()
+    .from("banners")
+    .delete()
+    .eq("id", id);
   if (error) throw toAdminError("تعذر حذف البنر.", error);
 }
 
@@ -367,7 +531,10 @@ export type ZoneInput = {
   is_active: boolean;
 };
 
-export async function saveZone(id: string | null, input: ZoneInput): Promise<void> {
+export async function saveZone(
+  id: string | null,
+  input: ZoneInput,
+): Promise<void> {
   const client = getSessionClient();
   const { error } =
     id === null
@@ -377,7 +544,10 @@ export async function saveZone(id: string | null, input: ZoneInput): Promise<voi
 }
 
 export async function deleteZone(id: string): Promise<void> {
-  const { error } = await getSessionClient().from("delivery_zones").delete().eq("id", id);
+  const { error } = await getSessionClient()
+    .from("delivery_zones")
+    .delete()
+    .eq("id", id);
   if (error) throw toAdminError("تعذر حذف منطقة التوصيل.", error);
 }
 
@@ -394,15 +564,22 @@ export async function getServiceFeePercentAdmin(): Promise<number> {
 }
 
 export async function saveServiceFeePercent(percent: number): Promise<void> {
-  if (!(percent >= 0) || percent > 100) throw { message: "النسبة يجب أن تكون بين 0 و 100." };
+  if (!(percent >= 0) || percent > 100)
+    throw { message: "النسبة يجب أن تكون بين 0 و 100." };
   const { error } = await getSessionClient()
     .from("app_settings")
-    .upsert({ key: "service_fee_percent", value: String(percent) }, { onConflict: "key" });
+    .upsert(
+      { key: "service_fee_percent", value: String(percent) },
+      { onConflict: "key" },
+    );
   if (error) throw toAdminError("تعذر حفظ نسبة الخدمة.", error);
 }
 
 /** Upload-then-save: returns the public URL; throws on failure (caller must not save without it). */
-export async function uploadImage(prefix: "categories" | "subcategories" | "products" | "banners" | "options", file: File): Promise<string> {
+export async function uploadImage(
+  prefix: "categories" | "subcategories" | "products" | "banners" | "options",
+  file: File,
+): Promise<string> {
   const client = getSessionClient();
   // Client-side compression first (max 300KB); on any failure the original
   // file is uploaded instead so the workflow never blocks on old devices.
@@ -416,14 +593,20 @@ export async function uploadImage(prefix: "categories" | "subcategories" | "prod
       targetSizeMB: 0.3,
       mimeType: "image/jpeg",
     });
-    if (compressed.size > 0 && compressed.size <= file.size) payload = compressed;
+    if (compressed.size > 0 && compressed.size <= file.size)
+      payload = compressed;
   } catch (error) {
     console.error("image compression skipped, uploading original:", error);
   }
   const rawExt = payload.name.split(".").pop()?.toLowerCase();
-  const ext = ((payload.type === "image/jpeg" ? "jpg" : rawExt) || "jpg").slice(0, 5);
+  const ext = ((payload.type === "image/jpeg" ? "jpg" : rawExt) || "jpg").slice(
+    0,
+    5,
+  );
   const path = `${prefix}/${crypto.randomUUID()}.${ext}`;
-  const { error } = await client.storage.from("nahla-images").upload(path, payload, { contentType: payload.type || "image/jpeg" });
+  const { error } = await client.storage
+    .from("nahla-images")
+    .upload(path, payload, { contentType: payload.type || "image/jpeg" });
   if (error) throw toAdminError("تعذر رفع الصورة.", error);
   const { data } = client.storage.from("nahla-images").getPublicUrl(path);
   return data.publicUrl;
@@ -432,7 +615,9 @@ export async function uploadImage(prefix: "categories" | "subcategories" | "prod
 /**
  * Best-effort deletion of one stored image file. Never throws.
  */
-export async function deleteStoredImage(publicUrl: string | null): Promise<void> {
+export async function deleteStoredImage(
+  publicUrl: string | null,
+): Promise<void> {
   try {
     if (!publicUrl) return;
     const path = publicUrl.split("/nahla-images/")[1]?.split("?")[0];
@@ -475,7 +660,10 @@ function filterParentColumn(kind: FilterParentKind) {
   return kind === "subcategory" ? "subcategory_id" : "category_id";
 }
 
-export async function listFiltersAdmin(kind: FilterParentKind, parentId: string): Promise<DisplayFilter[]> {
+export async function listFiltersAdmin(
+  kind: FilterParentKind,
+  parentId: string,
+): Promise<DisplayFilter[]> {
   const { data, error } = await getSessionClient()
     .from("subcategory_filters")
     .select("id,name,sort_order,is_active")
@@ -485,7 +673,11 @@ export async function listFiltersAdmin(kind: FilterParentKind, parentId: string)
   return (data ?? []) as DisplayFilter[];
 }
 
-export type FilterInput = { name: string; sort_order: number; is_active: boolean };
+export type FilterInput = {
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+};
 
 export async function saveFilter(
   kind: FilterParentKind,
@@ -503,37 +695,61 @@ export async function saveFilter(
     if (error) throw toAdminError("تعذر حفظ الفلتر.", error);
     return (data as { id: string }).id;
   }
-  const { error } = await client.from("subcategory_filters").update(input).eq("id", id);
+  const { error } = await client
+    .from("subcategory_filters")
+    .update(input)
+    .eq("id", id);
   if (error) throw toAdminError("تعذر حفظ الفلتر.", error);
   return id;
 }
 
 export async function deleteFilter(id: string): Promise<void> {
-  const { error } = await getSessionClient().from("subcategory_filters").delete().eq("id", id);
+  const { error } = await getSessionClient()
+    .from("subcategory_filters")
+    .delete()
+    .eq("id", id);
   if (error) throw toAdminError("تعذر حذف الفلتر.", error);
 }
 
-export async function setSectionFiltering(kind: FilterParentKind, id: string, enabled: boolean): Promise<void> {
+export async function setSectionFiltering(
+  kind: FilterParentKind,
+  id: string,
+  enabled: boolean,
+): Promise<void> {
   const table = kind === "subcategory" ? "subcategories" : "categories";
-  const { error } = await getSessionClient().from(table).update({ has_filters: enabled }).eq("id", id);
+  const { error } = await getSessionClient()
+    .from(table)
+    .update({ has_filters: enabled })
+    .eq("id", id);
   if (error) throw toAdminError("تعذر تحديث إعداد الفلاتر.", error);
 }
 
 /** Sets (or clears with null) a product's single filter assignment. */
-export async function saveProductFilter(productId: string, filterId: string | null): Promise<void> {
+export async function saveProductFilter(
+  productId: string,
+  filterId: string | null,
+): Promise<void> {
   const client = getSessionClient();
   if (filterId === null) {
-    const { error } = await client.from("product_filter_values").delete().eq("product_id", productId);
+    const { error } = await client
+      .from("product_filter_values")
+      .delete()
+      .eq("product_id", productId);
     if (error) throw toAdminError("تعذر مسح فلتر المنتج.", error);
     return;
   }
   const { error } = await client
     .from("product_filter_values")
-    .upsert({ product_id: productId, filter_id: filterId }, { onConflict: "product_id" });
+    .upsert(
+      { product_id: productId, filter_id: filterId },
+      { onConflict: "product_id" },
+    );
   if (error) throw toAdminError("تعذر حفظ فلتر المنتج.", error);
 }
 
-export async function getProductFilter(productId: string): Promise<string | null> {
+export async function getProductFilter(
+  productId: string,
+): Promise<string | null> {
   const { data, error } = await getSessionClient()
     .from("product_filter_values")
     .select("filter_id")

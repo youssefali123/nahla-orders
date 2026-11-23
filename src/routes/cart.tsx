@@ -2,59 +2,80 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { BackButton } from "@/components/BackButton";
+import { PriceBlock } from "@/components/PriceBlock";
 import { site } from "@/config/site";
 import { useCart, useLiveProducts, type CartItem } from "@/lib/cart";
-import { getServiceFeePercent } from "@/lib/catalog";
+import { getServiceFeePercent, type Product } from "@/lib/catalog";
+import {
+  lineTotal,
+  normalizeDiscountPercent,
+  normalizeExtraPrice,
+  round2,
+  unitPrice,
+} from "@/lib/pricing";
 
 export const Route = createFileRoute("/cart")({
   head: () => ({
     meta: [
       { title: "السلة | نحلة" },
-      { name: "description", content: "راجع منتجات سلتك، عدّل الكميات وأكمل طلبك من نحلة في خطوات بسيطة." },
+      {
+        name: "description",
+        content:
+          "راجع منتجات سلتك، عدّل الكميات وأكمل طلبك من نحلة في خطوات بسيطة.",
+      },
       { property: "og:title", content: "السلة | نحلة" },
-      { property: "og:description", content: "عدّل كميات طلبك وأكمل الطلب بسرعة." },
+      {
+        property: "og:description",
+        content: "عدّل كميات طلبك وأكمل الطلب بسرعة.",
+      },
     ],
   }),
   component: CartPage,
 });
 
-function isUnavailable(item: CartItem, live: Map<string, { id: string }> | null) {
+function isUnavailable(item: CartItem, live: Map<string, Product> | null) {
   return !item.note && live !== null && !live.has(item.id);
 }
 
-function liveUnitPrice(item: CartItem, live: Map<string, { price: number }> | null) {
+function itemPricing(item: CartItem, live: Map<string, Product> | null) {
+  if (item.note) {
+    return {
+      pricing: { base: 0, extra: 0, discountPercent: 0 },
+      optionDeltas: 0,
+    };
+  }
+  const liveProduct = live?.get(item.id);
+  const base = liveProduct ? liveProduct.price : item.price;
+  const extra = liveProduct
+    ? (liveProduct.extra_price ?? 0)
+    : (item.extraPrice ?? 0);
+  const discountPercent = liveProduct
+    ? (liveProduct.discount_percent ?? 0)
+    : (item.discountPercent ?? 0);
+  const optionDeltas = (item.selectedOptions ?? []).reduce(
+    (n, s) => n + s.priceDelta,
+    0,
+  );
+
+  return {
+    pricing: {
+      base,
+      extra: normalizeExtraPrice(extra),
+      discountPercent: normalizeDiscountPercent(discountPercent),
+    },
+    optionDeltas,
+  };
+}
+
+function liveLineTotal(item: CartItem, live: Map<string, Product> | null) {
   if (item.note) return 0;
-  const base = live?.get(item.id)?.price ?? item.price;
-  const deltas = (item.selectedOptions ?? []).reduce((n, s) => n + s.priceDelta, 0);
-  return base + deltas;
+  const { pricing, optionDeltas } = itemPricing(item, live);
+  return lineTotal(pricing, item.qty, optionDeltas);
 }
 
 function CartPage() {
   const { items, increase, decrease, remove } = useCart();
   const { live } = useLiveProducts();
-
-  if (items.length === 0) {
-    return (
-      <div className="mx-auto max-w-md px-3 pt-4 text-center">
-        <div className="flex justify-start">
-          <BackButton />
-        </div>
-        <img src="/favicon.png" alt={site.name} className="mx-auto h-32 w-32 rounded-3xl object-cover" />
-        <h1 className="mt-4 text-xl font-extrabold">السلة لسه فاضية 🐝</h1>
-        <p className="mt-2 text-sm text-muted-foreground">اختار اللي نفسك فيه وإحنا نوصلّهولك.</p>
-        <Link
-          to="/"
-          className="mt-6 inline-flex h-13 items-center justify-center rounded-xl bg-primary px-8 py-3.5 text-base font-bold text-primary-foreground transition-opacity hover:opacity-90"
-        >
-          ابدأ التسوق
-        </Link>
-      </div>
-    );
-  }
-
-  const total = items.reduce((n, i) => (isUnavailable(i, live) ? n : n + liveUnitPrice(i, live) * i.qty), 0);
-  const orderable = items.some((i) => !isUnavailable(i, live));
-  const hasCustomOrder = items.some((i) => !!i.note);
   const [feePct, setFeePct] = useState(0);
 
   useEffect(() => {
@@ -72,7 +93,40 @@ function CartPage() {
     };
   }, []);
 
-  const round2 = (n: number) => Math.round(n * 100) / 100;
+  if (items.length === 0) {
+    return (
+      <div className="mx-auto max-w-md px-3 pt-4 text-center">
+        <div className="flex justify-start">
+          <BackButton />
+        </div>
+        <img
+          src="/favicon.png"
+          alt={site.name}
+          className="mx-auto h-32 w-32 rounded-3xl object-cover"
+        />
+        <h1 className="mt-4 text-xl font-extrabold">السلة لسه فاضية 🐝</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          اختار اللي نفسك فيه وإحنا نوصلّهولك.
+        </p>
+        <Link
+          to="/"
+          className="mt-6 inline-flex h-13 items-center justify-center rounded-xl bg-primary px-8 py-3.5 text-base font-bold text-primary-foreground transition-opacity hover:opacity-90"
+        >
+          ابدأ التسوق
+        </Link>
+      </div>
+    );
+  }
+
+  const total = round2(
+    items.reduce(
+      (n, i) => (isUnavailable(i, live) ? n : n + liveLineTotal(i, live)),
+      0,
+    ),
+  );
+  const orderable = items.some((i) => !isUnavailable(i, live));
+  const hasCustomOrder = items.some((i) => !!i.note);
+
   const serviceFee = round2((total * feePct) / 100);
   const grandTotal = round2(total + serviceFee);
 
@@ -86,7 +140,8 @@ function CartPage() {
       <ul className="space-y-3">
         {items.map((item) => {
           const unavailable = isUnavailable(item, live);
-          const price = liveUnitPrice(item, live);
+          const { pricing, optionDeltas } = itemPricing(item, live);
+          const lineTot = lineTotal(pricing, item.qty, optionDeltas);
           const selections = item.selectedOptions ?? [];
           const visual = (
             <>
@@ -95,7 +150,12 @@ function CartPage() {
                 aria-hidden
               >
                 {item.image ? (
-                  <img src={item.image} alt="" className="h-full w-full object-cover" loading="lazy" />
+                  <img
+                    src={item.image}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
                 ) : (
                   item.icon
                 )}
@@ -106,19 +166,29 @@ function CartPage() {
                 </p>
                 {item.note ? (
                   <>
-                    <p className="mt-0.5 line-clamp-3 text-xs text-muted-foreground">{item.note}</p>
+                    <p className="mt-0.5 line-clamp-3 text-xs text-muted-foreground">
+                      {item.note}
+                    </p>
                     {item.subcategoryName && (
-                      <p className="mt-0.5 text-xs font-bold text-primary-dark">القسم: {item.subcategoryName}</p>
+                      <p className="mt-0.5 text-xs font-bold text-primary-dark">
+                        القسم: {item.subcategoryName}
+                      </p>
                     )}
                   </>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {price} {site.currency}
-                  </p>
+                  <PriceBlock
+                    price={pricing.base}
+                    extraPrice={pricing.extra}
+                    discountPercent={pricing.discountPercent}
+                    optionDeltas={optionDeltas}
+                    size="sm"
+                  />
                 )}
                 {selections.length > 0 && (
                   <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                    {selections.map((s) => `${s.groupName}: ${s.optionName}`).join("، ")}
+                    {selections
+                      .map((s) => `${s.groupName}: ${s.optionName}`)
+                      .join("، ")}
                   </p>
                 )}
                 {unavailable && (
@@ -166,7 +236,9 @@ function CartPage() {
                     >
                       <Plus className="h-4 w-4" />
                     </button>
-                    <span className="w-9 text-center font-extrabold">{item.qty}</span>
+                    <span className="w-9 text-center font-extrabold">
+                      {item.qty}
+                    </span>
                     <button
                       type="button"
                       aria-label="تقليل"
@@ -177,7 +249,7 @@ function CartPage() {
                     </button>
                   </div>
                   <p className="font-extrabold text-primary-dark">
-                    {item.qty * price} {site.currency}
+                    {lineTot} {site.currency}
                   </p>
                 </div>
               )}
@@ -188,7 +260,9 @@ function CartPage() {
 
       <div className="sticky bottom-3 space-y-3 rounded-2xl bg-card p-4 shadow-card">
         <div className="flex items-center justify-between text-base font-extrabold">
-          <span>إجمالي الطلب{hasCustomOrder ? " (بدون الطلب المخصص)" : ""}</span>
+          <span>
+            إجمالي الطلب{hasCustomOrder ? " (بدون الطلب المخصص)" : ""}
+          </span>
           <span className="text-primary-dark">
             {total} {site.currency}
           </span>

@@ -1,4 +1,10 @@
-import { createFileRoute, Link, notFound, redirect, useRouter } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  notFound,
+  redirect,
+  useRouter,
+} from "@tanstack/react-router";
 import { useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
@@ -40,7 +46,14 @@ export const Route = createFileRoute("/category/$categoryId/$subId")({
       sub = await getSubcategory(params.categoryId, params.subId);
     } catch (error) {
       console.error(error);
-      return { category: null, sub: null, products: [], filters: [], optionFlags: {}, error: "حصل خطأ، حاول تاني." };
+      return {
+        category: null,
+        sub: null,
+        products: [],
+        filters: [],
+        optionFlags: {},
+        error: "حصل خطأ، حاول تاني.",
+      };
     }
     if (!category || !sub) throw notFound();
     try {
@@ -52,7 +65,14 @@ export const Route = createFileRoute("/category/$categoryId/$subId")({
       return { category, sub, products, filters, optionFlags, error: null };
     } catch (error) {
       console.error(error);
-      return { category, sub, products: [], filters: [], optionFlags: {}, error: "حصل خطأ، حاول تاني." };
+      return {
+        category,
+        sub,
+        products: [],
+        filters: [],
+        optionFlags: {},
+        error: "حصل خطأ، حاول تاني.",
+      };
     }
   },
   head: ({ loaderData }) => {
@@ -74,18 +94,24 @@ export const Route = createFileRoute("/category/$categoryId/$subId")({
 });
 
 function SubcategoryPage() {
-  const { category, sub, products, filters, optionFlags, error } = Route.useLoaderData();
+  const { category, sub, products, filters, optionFlags, error } =
+    Route.useLoaderData();
   const router = useRouter();
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
   // "All" view follows the filter-bar grouping: each filter's products first
   // in bar order, unassigned products trail at the end.
   const filterOrder = new Map(filters.map((f, i) => [f.id, i]));
-  const visibleProducts = (selectedFilter ? products.filter((p) => p.filter_id === selectedFilter) : [...products].sort(
-    (a, b) =>
-      (a.filter_id ? (filterOrder.get(a.filter_id) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER) -
-      (b.filter_id ? (filterOrder.get(b.filter_id) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER) ||
-      a.sort_order - b.sort_order,
-  ));
+  const visibleProducts = selectedFilter
+    ? products.filter((p) => p.filter_id === selectedFilter)
+    : [...products].sort(
+        (a, b) =>
+          (a.filter_id
+            ? (filterOrder.get(a.filter_id) ?? Number.MAX_SAFE_INTEGER)
+            : Number.MAX_SAFE_INTEGER) -
+            (b.filter_id
+              ? (filterOrder.get(b.filter_id) ?? Number.MAX_SAFE_INTEGER)
+              : Number.MAX_SAFE_INTEGER) || a.sort_order - b.sort_order,
+      );
 
   if (error || !category || !sub) {
     return (
@@ -110,7 +136,11 @@ function SubcategoryPage() {
     <div className="mx-auto max-w-5xl space-y-4 px-3 pt-4">
       <nav className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
-          <Link to="/category/$categoryId" params={{ categoryId: category.id }} className="hover:text-foreground">
+          <Link
+            to="/category/$categoryId"
+            params={{ categoryId: category.id }}
+            className="hover:text-foreground"
+          >
             {category.name}
           </Link>
           <ChevronLeft className="h-3.5 w-3.5" />
@@ -126,15 +156,25 @@ function SubcategoryPage() {
         {sub.name}
       </h1>
 
-      {sub.requires_preorder && <Notice text="طلبات الأكل البيتي يجب طلبها قبلها بيوم." />}
+      {sub.requires_preorder && (
+        <Notice text="طلبات الأكل البيتي يجب طلبها قبلها بيوم." />
+      )}
 
       {products.length > 0 ? (
         <>
           {filters.length > 0 && (
-            <FilterBar filters={filters} selected={selectedFilter} onSelect={setSelectedFilter} />
+            <FilterBar
+              filters={filters}
+              selected={selectedFilter}
+              onSelect={setSelectedFilter}
+            />
           )}
           {visibleProducts.length > 0 ? (
-            <ProductGrid products={visibleProducts} optionFlags={optionFlags} />
+            <ProductGrid
+              products={visibleProducts}
+              optionFlags={optionFlags}
+              layout={sub.product_layout}
+            />
           ) : (
             <div className="rounded-2xl bg-card p-8 text-center shadow-soft">
               <p className="text-4xl">🐝</p>

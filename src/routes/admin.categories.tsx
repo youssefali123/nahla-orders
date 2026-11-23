@@ -4,13 +4,33 @@ import { Pencil, Plus, Power, Trash2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AdminGuard } from "@/components/admin/AdminGuard";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { DataTable, EmptyState, ErrorState, SearchInput, StatusBadge, TableSkeleton } from "@/components/admin/DataTable";
+import {
+  DataTable,
+  EmptyState,
+  ErrorState,
+  SearchInput,
+  StatusBadge,
+  TableSkeleton,
+} from "@/components/admin/DataTable";
 import { ConfirmDialog } from "@/components/admin/dialogs";
 import { FilterValuesManager } from "@/components/admin/filters";
 import { Field, ImageUploader } from "@/components/admin/forms";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   deleteCategory,
@@ -26,13 +46,25 @@ export const Route = createFileRoute("/admin/categories")({
   component: AdminCategoriesPage,
 });
 
-const EMPTY_FORM: CategoryInput = { name: "", icon: "", image_url: null, sort_order: 0, is_active: true, type: "normal", has_filters: false };
+const EMPTY_FORM: CategoryInput = {
+  name: "",
+  icon: "",
+  image_url: null,
+  sort_order: 0,
+  is_active: true,
+  type: "normal",
+  has_filters: false,
+  product_layout: "grid",
+};
 
 function AdminCategoriesPage() {
   const [rows, setRows] = useState<Category[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState("");
-  const [editing, setEditing] = useState<{ id: string | null; form: CategoryInput } | null>(null);
+  const [editing, setEditing] = useState<{
+    id: string | null;
+    form: CategoryInput;
+  } | null>(null);
   const [deleting, setDeleting] = useState<Category | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -69,6 +101,7 @@ function AdminCategoriesPage() {
         is_active: row.is_active,
         type: row.type,
         has_filters: row.has_filters ?? false,
+        product_layout: row.product_layout ?? "grid",
       },
     });
   }
@@ -80,14 +113,24 @@ function AdminCategoriesPage() {
     }
     setSaving(true);
     try {
-      const prevImage = editing.id ? (rows?.find((r) => r.id === editing.id)?.image_url ?? null) : null;
-      await saveCategory(editing.id, { ...editing.form, name: editing.form.name.trim() });
-      if (prevImage && prevImage !== editing.form.image_url) await deleteStoredImage(prevImage);
-      toast.success(editing.id ? "تم حفظ التصنيف بنجاح" : "تمت إضافة التصنيف بنجاح");
+      const prevImage = editing.id
+        ? (rows?.find((r) => r.id === editing.id)?.image_url ?? null)
+        : null;
+      await saveCategory(editing.id, {
+        ...editing.form,
+        name: editing.form.name.trim(),
+      });
+      if (prevImage && prevImage !== editing.form.image_url)
+        await deleteStoredImage(prevImage);
+      toast.success(
+        editing.id ? "تم حفظ التصنيف بنجاح" : "تمت إضافة التصنيف بنجاح",
+      );
       setEditing(null);
       load();
     } catch (e) {
-      toast.error((e as { message?: string })?.message ?? "حصل خطأ، حاول تاني.");
+      toast.error(
+        (e as { message?: string })?.message ?? "حصل خطأ، حاول تاني.",
+      );
     } finally {
       setSaving(false);
     }
@@ -103,11 +146,14 @@ function AdminCategoriesPage() {
         is_active: !row.is_active,
         type: row.type,
         has_filters: row.has_filters ?? false,
+        product_layout: row.product_layout ?? "grid",
       });
       toast.success(row.is_active ? "تم تعطيل التصنيف" : "تم تفعيل التصنيف");
       load();
     } catch (e) {
-      toast.error((e as { message?: string })?.message ?? "حصل خطأ، حاول تاني.");
+      toast.error(
+        (e as { message?: string })?.message ?? "حصل خطأ، حاول تاني.",
+      );
     }
   }
 
@@ -116,14 +162,22 @@ function AdminCategoriesPage() {
       <AdminShell
         title="التصنيفات"
         actions={
-          <Button type="button" onClick={openCreate} className="h-11 gap-2 rounded-xl font-bold">
+          <Button
+            type="button"
+            onClick={openCreate}
+            className="h-11 gap-2 rounded-xl font-bold"
+          >
             <Plus className="h-4 w-4" aria-hidden />
             إضافة تصنيف
           </Button>
         }
       >
         <div className="flex flex-wrap gap-2">
-          <SearchInput value={query} onChange={setQuery} placeholder="بحث عن تصنيف..." />
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="بحث عن تصنيف..."
+          />
         </div>
         {failed ? (
           <ErrorState onRetry={load} />
@@ -138,8 +192,19 @@ function AdminCategoriesPage() {
                 header: "التصنيف",
                 render: (c) => (
                   <span className="flex items-center gap-3">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-xl" aria-hidden>
-                      {c.image_url ? <img src={c.image_url} alt="" className="h-full w-full object-cover" /> : (c.icon ?? "🐝")}
+                    <span
+                      className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-xl"
+                      aria-hidden
+                    >
+                      {c.image_url ? (
+                        <img
+                          src={c.image_url}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        (c.icon ?? "🐝")
+                      )}
                     </span>
                     <span className="font-bold">{c.name}</span>
                   </span>
@@ -154,20 +219,47 @@ function AdminCategoriesPage() {
                   </span>
                 ),
               },
-              { key: "order", header: "الترتيب", render: (c) => <span className="font-bold">{c.sort_order}</span> },
-              { key: "status", header: "الحالة", render: (c) => <StatusBadge active={c.is_active} /> },
+              {
+                key: "order",
+                header: "الترتيب",
+                render: (c) => (
+                  <span className="font-bold">{c.sort_order}</span>
+                ),
+              },
+              {
+                key: "status",
+                header: "الحالة",
+                render: (c) => <StatusBadge active={c.is_active} />,
+              },
               {
                 key: "actions",
                 header: "الإجراءات",
                 render: (c) => (
                   <span className="flex gap-1">
-                    <button type="button" aria-label={`تعديل ${c.name}`} onClick={() => openEdit(c)} className="grid h-9 w-9 place-items-center rounded-xl transition-colors hover:bg-muted">
+                    <button
+                      type="button"
+                      aria-label={`تعديل ${c.name}`}
+                      onClick={() => openEdit(c)}
+                      className="grid h-9 w-9 place-items-center rounded-xl transition-colors hover:bg-muted"
+                    >
                       <Pencil className="h-4 w-4" aria-hidden />
                     </button>
-                    <button type="button" aria-label={c.is_active ? `تعطيل ${c.name}` : `تفعيل ${c.name}`} onClick={() => toggle(c)} className="grid h-9 w-9 place-items-center rounded-xl transition-colors hover:bg-muted">
+                    <button
+                      type="button"
+                      aria-label={
+                        c.is_active ? `تعطيل ${c.name}` : `تفعيل ${c.name}`
+                      }
+                      onClick={() => toggle(c)}
+                      className="grid h-9 w-9 place-items-center rounded-xl transition-colors hover:bg-muted"
+                    >
                       <Power className="h-4 w-4" aria-hidden />
                     </button>
-                    <button type="button" aria-label={`حذف ${c.name}`} onClick={() => setDeleting(c)} className="grid h-9 w-9 place-items-center rounded-xl text-destructive transition-colors hover:bg-destructive/10">
+                    <button
+                      type="button"
+                      aria-label={`حذف ${c.name}`}
+                      onClick={() => setDeleting(c)}
+                      className="grid h-9 w-9 place-items-center rounded-xl text-destructive transition-colors hover:bg-destructive/10"
+                    >
                       <Trash2 className="h-4 w-4" aria-hidden />
                     </button>
                   </span>
@@ -177,19 +269,57 @@ function AdminCategoriesPage() {
             renderMobileCard={(c) => (
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
-                  <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-2xl" aria-hidden>
-                    {c.image_url ? <img src={c.image_url} alt="" className="h-full w-full object-cover" /> : (c.icon ?? "🐝")}
+                  <span
+                    className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-2xl"
+                    aria-hidden
+                  >
+                    {c.image_url ? (
+                      <img
+                        src={c.image_url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      (c.icon ?? "🐝")
+                    )}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-extrabold">{c.name}</p>
-                    <p className="text-xs text-muted-foreground">{c.type === "custom_order" ? "طلب مخصص" : "عادي"} · ترتيب {c.sort_order}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {c.type === "custom_order" ? "طلب مخصص" : "عادي"} · ترتيب{" "}
+                      {c.sort_order}
+                    </p>
                   </div>
                   <StatusBadge active={c.is_active} />
                 </div>
                 <div className="flex gap-2 border-t border-border pt-2">
-                  <Button type="button" variant="outline" size="sm" onClick={() => openEdit(c)} className="flex-1 rounded-xl font-bold">تعديل</Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => toggle(c)} className="flex-1 rounded-xl font-bold">{c.is_active ? "تعطيل" : "تفعيل"}</Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setDeleting(c)} className="flex-1 rounded-xl font-bold text-destructive">حذف</Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEdit(c)}
+                    className="flex-1 rounded-xl font-bold"
+                  >
+                    تعديل
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggle(c)}
+                    className="flex-1 rounded-xl font-bold"
+                  >
+                    {c.is_active ? "تعطيل" : "تفعيل"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDeleting(c)}
+                    className="flex-1 rounded-xl font-bold text-destructive"
+                  >
+                    حذف
+                  </Button>
                 </div>
               </div>
             )}
@@ -198,7 +328,11 @@ function AdminCategoriesPage() {
                 title="لا توجد تصنيفات"
                 hint="ابدأ بإضافة أول تصنيف للكتالوج."
                 action={
-                  <Button type="button" onClick={openCreate} className="h-12 gap-2 rounded-xl font-bold">
+                  <Button
+                    type="button"
+                    onClick={openCreate}
+                    className="h-12 gap-2 rounded-xl font-bold"
+                  >
                     <Plus className="h-4 w-4" aria-hidden />
                     إضافة تصنيف
                   </Button>
@@ -208,10 +342,18 @@ function AdminCategoriesPage() {
           />
         )}
 
-        <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
-          <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl" aria-label="تصنيف">
+        <Dialog
+          open={editing !== null}
+          onOpenChange={(open) => !open && setEditing(null)}
+        >
+          <DialogContent
+            className="max-h-[90vh] overflow-y-auto rounded-2xl"
+            aria-label="تصنيف"
+          >
             <DialogHeader>
-              <DialogTitle>{editing?.id ? "تعديل التصنيف" : "تصنيف جديد"}</DialogTitle>
+              <DialogTitle>
+                {editing?.id ? "تعديل التصنيف" : "تصنيف جديد"}
+              </DialogTitle>
             </DialogHeader>
             {editing && (
               <div className="space-y-3">
@@ -219,17 +361,31 @@ function AdminCategoriesPage() {
                   <Input
                     id="cat-name"
                     value={editing.form.name}
-                    onChange={(e) => setEditing({ ...editing, form: { ...editing.form, name: e.target.value } })}
+                    onChange={(e) =>
+                      setEditing({
+                        ...editing,
+                        form: { ...editing.form, name: e.target.value },
+                      })
+                    }
                     className="h-12 rounded-xl"
                     placeholder="مثال: ماركت"
                   />
                 </Field>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field id="cat-icon" label="الأيقونة" hint="إيموجي يظهر بجانب الاسم">
+                  <Field
+                    id="cat-icon"
+                    label="الأيقونة"
+                    hint="إيموجي يظهر بجانب الاسم"
+                  >
                     <Input
                       id="cat-icon"
                       value={editing.form.icon ?? ""}
-                      onChange={(e) => setEditing({ ...editing, form: { ...editing.form, icon: e.target.value } })}
+                      onChange={(e) =>
+                        setEditing({
+                          ...editing,
+                          form: { ...editing.form, icon: e.target.value },
+                        })
+                      }
                       className="h-12 rounded-xl"
                       placeholder="🛒"
                     />
@@ -239,7 +395,15 @@ function AdminCategoriesPage() {
                       id="cat-order"
                       type="number"
                       value={editing.form.sort_order}
-                      onChange={(e) => setEditing({ ...editing, form: { ...editing.form, sort_order: Number(e.target.value) } })}
+                      onChange={(e) =>
+                        setEditing({
+                          ...editing,
+                          form: {
+                            ...editing.form,
+                            sort_order: Number(e.target.value),
+                          },
+                        })
+                      }
                       className="h-12 rounded-xl"
                       inputMode="numeric"
                     />
@@ -250,16 +414,51 @@ function AdminCategoriesPage() {
                     id="cat-image"
                     prefix="categories"
                     value={editing.form.image_url ?? null}
-                    onChange={(url) => setEditing({ ...editing, form: { ...editing.form, image_url: url } })}
+                    onChange={(url) =>
+                      setEditing({
+                        ...editing,
+                        form: { ...editing.form, image_url: url },
+                      })
+                    }
                   />
+                </Field>
+                <Field
+                  id="cat-layout"
+                  label="شكل عرض المنتجات"
+                  hint="ينطبق فقط إذا كان القسم يعرض منتجات مباشرة (بدون أقسام فرعية)"
+                >
+                  <Select
+                    value={editing.form.product_layout ?? "grid"}
+                    onValueChange={(v: "grid" | "list") =>
+                      setEditing({
+                        ...editing,
+                        form: { ...editing.form, product_layout: v },
+                      })
+                    }
+                  >
+                    <SelectTrigger id="cat-layout" className="h-12 rounded-xl">
+                      <SelectValue placeholder="اختر شكل العرض" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="grid">الشبكة الحالية</SelectItem>
+                      <SelectItem value="list">منتج بعرض الشاشة</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </Field>
                 <div className="flex items-center justify-between gap-2 rounded-xl bg-muted p-3">
                   <span className="text-sm font-bold">الحالة</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">{editing.form.is_active ? "مفعل" : "معطل"}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {editing.form.is_active ? "مفعل" : "معطل"}
+                    </span>
                     <Switch
                       checked={editing.form.is_active}
-                      onCheckedChange={(v) => setEditing({ ...editing, form: { ...editing.form, is_active: v } })}
+                      onCheckedChange={(v) =>
+                        setEditing({
+                          ...editing,
+                          form: { ...editing.form, is_active: v },
+                        })
+                      }
                       aria-label="حالة التصنيف"
                     />
                   </div>
@@ -267,10 +466,17 @@ function AdminCategoriesPage() {
                 <div className="flex items-center justify-between gap-2 rounded-xl bg-muted p-3">
                   <span className="text-sm font-bold">فلاتر العرض</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">{editing.form.has_filters ? "مفعلة" : "معطلة"}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {editing.form.has_filters ? "مفعلة" : "معطلة"}
+                    </span>
                     <Switch
                       checked={editing.form.has_filters}
-                      onCheckedChange={(v) => setEditing({ ...editing, form: { ...editing.form, has_filters: v } })}
+                      onCheckedChange={(v) =>
+                        setEditing({
+                          ...editing,
+                          form: { ...editing.form, has_filters: v },
+                        })
+                      }
                       aria-label="تفعيل فلاتر العرض"
                     />
                   </div>
@@ -278,16 +484,29 @@ function AdminCategoriesPage() {
                 {editing.id && editing.form.has_filters && (
                   <div className="space-y-2 rounded-xl bg-muted p-3">
                     <p className="text-sm font-extrabold">قيم الفلاتر</p>
-                    <FilterValuesManager kind="category" parentId={editing.id} />
+                    <FilterValuesManager
+                      kind="category"
+                      parentId={editing.id}
+                    />
                   </div>
                 )}
               </div>
             )}
             <DialogFooter className="flex-row-reverse gap-2">
-              <Button type="button" variant="outline" onClick={() => setEditing(null)} className="rounded-xl">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditing(null)}
+                className="rounded-xl"
+              >
                 إلغاء
               </Button>
-              <Button type="button" onClick={save} disabled={saving} className="rounded-xl font-bold">
+              <Button
+                type="button"
+                onClick={save}
+                disabled={saving}
+                className="rounded-xl font-bold"
+              >
                 {saving ? "جاري الحفظ..." : "حفظ"}
               </Button>
             </DialogFooter>
@@ -308,7 +527,9 @@ function AdminCategoriesPage() {
               setDeleting(null);
               load();
             } catch (e) {
-              toast.error((e as { message?: string })?.message ?? "حصل خطأ، حاول تاني.");
+              toast.error(
+                (e as { message?: string })?.message ?? "حصل خطأ، حاول تاني.",
+              );
             }
           }}
         />

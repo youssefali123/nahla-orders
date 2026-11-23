@@ -2,19 +2,49 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 import { BackButton } from "@/components/BackButton";
+import { PriceBlock } from "@/components/PriceBlock";
 import { site } from "@/config/site";
-import { useCart, useLiveProducts, type CartItem, type SelectedOption } from "@/lib/cart";
-import { getActiveZones, getCategory, getProduct, getServiceFeePercent, nextOrderNumber, type DeliveryZone } from "@/lib/catalog";
-import { buildOrderMessage, type CustomerInfo, type OrderLine } from "@/lib/whatsapp";
+import {
+  useCart,
+  useLiveProducts,
+  type CartItem,
+  type SelectedOption,
+} from "@/lib/cart";
+import {
+  getActiveZones,
+  getCategory,
+  getProduct,
+  getServiceFeePercent,
+  nextOrderNumber,
+  type DeliveryZone,
+  type Product,
+} from "@/lib/catalog";
+import {
+  lineTotal,
+  normalizeDiscountPercent,
+  normalizeExtraPrice,
+  round2,
+} from "@/lib/pricing";
+import {
+  buildOrderMessage,
+  type CustomerInfo,
+  type OrderLine,
+} from "@/lib/whatsapp";
 import sendOrderMessage from "@/services/send_order";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
     meta: [
       { title: "إتمام الطلب | نحلة" },
-      { name: "description", content: "أدخل بياناتك وأكد طلبك ليتم إرساله لفريق نحلة فورًا." },
+      {
+        name: "description",
+        content: "أدخل بياناتك وأكد طلبك ليتم إرساله لفريق نحلة فورًا.",
+      },
       { property: "og:title", content: "إتمام الطلب | نحلة" },
-      { property: "og:description", content: "بيانات التوصيل وتأكيد الطلب في خطوة واحدة." },
+      {
+        property: "og:description",
+        content: "بيانات التوصيل وتأكيد الطلب في خطوة واحدة.",
+      },
     ],
   }),
   component: CheckoutPage,
@@ -24,13 +54,45 @@ type Errors = Partial<Record<keyof CustomerInfo, string>>;
 
 const CUSTOMER_STORAGE_KEY = "nahla-customer-v1";
 
+function itemPricing(item: CartItem, live: Map<string, Product> | null) {
+  if (item.note) {
+    return {
+      pricing: { base: 0, extra: 0, discountPercent: 0 },
+      optionDeltas: 0,
+    };
+  }
+  const liveProduct = live?.get(item.id);
+  const base = liveProduct ? liveProduct.price : item.price;
+  const extra = liveProduct
+    ? (liveProduct.extra_price ?? 0)
+    : (item.extraPrice ?? 0);
+  const discountPercent = liveProduct
+    ? (liveProduct.discount_percent ?? 0)
+    : (item.discountPercent ?? 0);
+  const optionDeltas = (item.selectedOptions ?? []).reduce(
+    (n, s) => n + s.priceDelta,
+    0,
+  );
+
+  return {
+    pricing: {
+      base,
+      extra: normalizeExtraPrice(extra),
+      discountPercent: normalizeDiscountPercent(discountPercent),
+    },
+    optionDeltas,
+  };
+}
+
 function loadStoredCustomer(): CustomerInfo & { zoneId?: string } {
   const empty = { name: "", phone: "", address: "" };
   if (typeof window === "undefined") return empty;
   try {
     const raw = window.localStorage.getItem(CUSTOMER_STORAGE_KEY);
     if (!raw) return empty;
-    const parsed = JSON.parse(raw) as Partial<CustomerInfo & { zoneId: string }>;
+    const parsed = JSON.parse(raw) as Partial<
+      CustomerInfo & { zoneId: string }
+    >;
     return {
       name: typeof parsed.name === "string" ? parsed.name : "",
       phone: typeof parsed.phone === "string" ? parsed.phone : "",
@@ -51,13 +113,18 @@ function CheckoutPage() {
   const [sending, setSending] = useState(false);
   const [zones, setZones] = useState<DeliveryZone[] | null>(null);
   const [zonesFailed, setZonesFailed] = useState(false);
-  const [zoneId, setZoneId] = useState<string | null>(() => loadStoredCustomer().zoneId ?? null);
+  const [zoneId, setZoneId] = useState<string | null>(
+    () => loadStoredCustomer().zoneId ?? null,
+  );
   const [feePct, setFeePct] = useState(0);
 
   // Persist customer info + zone choice on every edit so checkout auto-fills next time.
   useEffect(() => {
     try {
-      window.localStorage.setItem(CUSTOMER_STORAGE_KEY, JSON.stringify({ ...form, zoneId }));
+      window.localStorage.setItem(
+        CUSTOMER_STORAGE_KEY,
+        JSON.stringify({ ...form, zoneId }),
+      );
     } catch {
       /* storage unavailable — checkout still works for this session */
     }
@@ -71,7 +138,11 @@ function CheckoutPage() {
         if (cancelled) return;
         setZones(list);
         setZonesFailed(false);
-        setZoneId((current) => (current && list.some((z) => z.id === current) ? current : (list[0]?.id ?? null)));
+        setZoneId((current) =>
+          current && list.some((z) => z.id === current)
+            ? current
+            : (list[0]?.id ?? null),
+        );
       },
       () => {
         if (!cancelled) setZonesFailed(true);
@@ -90,7 +161,8 @@ function CheckoutPage() {
     };
   }, []);
 
-  const selectedZone = zones?.find((z) => z.id === zoneId) ?? zones?.[0] ?? null;
+  const selectedZone =
+    zones?.find((z) => z.id === zoneId) ?? zones?.[0] ?? null;
   const deliveryFee = selectedZone ? Number(selectedZone.fee) : 0;
   const zoneList = zones ?? [];
 
@@ -98,13 +170,18 @@ function CheckoutPage() {
   // current prices. While the lookup is in flight, fall back to stored values.
   const orderable: CartItem[] =
     live === null ? items : items.filter((i) => i.note || live.has(i.id));
-  const baseOf = (item: CartItem) => (item.note ? item.price : (live?.get(item.id)?.price ?? item.price));
-  const unitOf = (item: CartItem, selections: SelectedOption[] = item.selectedOptions ?? []) =>
-    baseOf(item) + selections.reduce((n, s) => n + s.priceDelta, 0);
-  const total = orderable.reduce((n, i) => (i.note ? n : n + unitOf(i) * i.qty), 0);
-  const round2 = (n: number) => Math.round(n * 100) / 100;
+
+  const total = round2(
+    orderable.reduce((n, i) => {
+      if (i.note) return n;
+      const { pricing, optionDeltas } = itemPricing(i, live);
+      return n + lineTotal(pricing, i.qty, optionDeltas);
+    }, 0),
+  );
   const serviceFee = orderable.length > 0 ? round2((total * feePct) / 100) : 0;
-  const grandTotal = round2(total + (orderable.length > 0 ? deliveryFee : 0) + serviceFee);
+  const grandTotal = round2(
+    total + (orderable.length > 0 ? deliveryFee : 0) + serviceFee,
+  );
   const zonesReady = zones !== null;
   const noZones = zonesReady && zones.length === 0;
 
@@ -116,7 +193,9 @@ function CheckoutPage() {
         </div>
         <p className="text-5xl">🐝</p>
         <h1 className="mt-3 text-xl font-extrabold">السلة فاضية</h1>
-        <p className="mt-2 text-sm text-muted-foreground">أضف منتجات الأول وبعدين أكمل الطلب.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          أضف منتجات الأول وبعدين أكمل الطلب.
+        </p>
         <Link
           to="/"
           className="mt-6 inline-flex h-13 items-center justify-center rounded-xl bg-primary px-8 py-3.5 text-base font-bold text-primary-foreground"
@@ -177,8 +256,13 @@ function CheckoutPage() {
     setSending(true);
     try {
       // Never trust stored prices for configured items: re-read live trees.
-      const needsLive = orderable.filter((i) => !i.note && (i.selectedOptions ?? []).length > 0);
-      const trees = new Map<string, NonNullable<Awaited<ReturnType<typeof getProduct>>>>();
+      const needsLive = orderable.filter(
+        (i) => !i.note && (i.selectedOptions ?? []).length > 0,
+      );
+      const trees = new Map<
+        string,
+        NonNullable<Awaited<ReturnType<typeof getProduct>>>
+      >();
       await Promise.all(
         [...new Set(needsLive.map((i) => i.id))].map(async (id) => {
           const tree = await getProduct(id);
@@ -187,13 +271,28 @@ function CheckoutPage() {
       );
       const priced = orderable.flatMap((item) => {
         if (item.note) return [item];
-        const base = baseOf(item);
-        if ((item.selectedOptions ?? []).length === 0) return [{ ...item, price: base }];
+        const { pricing } = itemPricing(item, live);
+        if ((item.selectedOptions ?? []).length === 0) {
+          return [
+            {
+              ...item,
+              price: pricing.base,
+              extraPrice: pricing.extra,
+              discountPercent: pricing.discountPercent,
+            },
+          ];
+        }
         const tree = trees.get(item.id);
         if (!tree || !tree.is_active) return [];
-        const selections: SelectedOption[] = (item.selectedOptions ?? []).flatMap((s) => {
-          const group = tree.option_groups.find((g) => g.id === s.groupId && g.is_active);
-          const option = group?.options.find((o) => o.id === s.optionId && o.is_active);
+        const selections: SelectedOption[] = (
+          item.selectedOptions ?? []
+        ).flatMap((s) => {
+          const group = tree.option_groups.find(
+            (g) => g.id === s.groupId && g.is_active,
+          );
+          const option = group?.options.find(
+            (o) => o.id === s.optionId && o.is_active,
+          );
           if (!group || !option) return [];
           return [
             {
@@ -205,53 +304,109 @@ function CheckoutPage() {
             },
           ];
         });
-        return [{ ...item, name: tree.name, price: tree.price, selectedOptions: selections }];
+        return [
+          {
+            ...item,
+            name: tree.name,
+            price: tree.price,
+            extraPrice: normalizeExtraPrice(tree.extra_price),
+            discountPercent: normalizeDiscountPercent(tree.discount_percent),
+            selectedOptions: selections,
+          },
+        ];
       });
-      if (priced.filter((i) => !i.note).length === 0 && priced.length > 0 && orderable.some((i) => !i.note)) {
+      if (
+        priced.filter((i) => !i.note).length === 0 &&
+        priced.length > 0 &&
+        orderable.some((i) => !i.note)
+      ) {
         toast.error("الاختيارات المحفوظة لم تعد متاحة، راجع السلة");
         setSending(false);
         return;
       }
       // Group the message by catalog category (custom notes trail last).
-      const productIds = [...new Set(priced.filter((i) => !i.note).map((i) => i.id))];
-      const productRows = new Map<string, NonNullable<Awaited<ReturnType<typeof getProduct>>>>();
+      const productIds = [
+        ...new Set(priced.filter((i) => !i.note).map((i) => i.id)),
+      ];
+      const productRows = new Map<
+        string,
+        NonNullable<Awaited<ReturnType<typeof getProduct>>>
+      >();
       await Promise.all(
         productIds.map(async (id) => {
           const row = trees.get(id) ?? (await getProduct(id));
           if (row) productRows.set(id, row);
         }),
       );
-      const categoryRows = new Map<string, NonNullable<Awaited<ReturnType<typeof getCategory>>>>();
+      const categoryRows = new Map<
+        string,
+        NonNullable<Awaited<ReturnType<typeof getCategory>>>
+      >();
       await Promise.all(
-        [...new Set([...productRows.values()].map((p) => p.category_id))].map(async (cid) => {
-          const cat = await getCategory(cid);
-          if (cat) categoryRows.set(cid, cat);
-        }),
+        [...new Set([...productRows.values()].map((p) => p.category_id))].map(
+          async (cid) => {
+            const cat = await getCategory(cid);
+            if (cat) categoryRows.set(cid, cat);
+          },
+        ),
       );
       const grouped: OrderLine[] = priced.map((item) => {
-        if (item.note) return { ...item, categoryName: "", categoryOrder: 9999 };
+        if (item.note)
+          return { ...item, categoryName: "", categoryOrder: 9999 };
         const row = productRows.get(item.id);
         const cat = row ? categoryRows.get(row.category_id) : undefined;
-        return { ...item, categoryName: cat?.name ?? "أخرى", categoryOrder: cat?.sort_order ?? 998 };
+        return {
+          ...item,
+          categoryName: cat?.name ?? "أخرى",
+          categoryOrder: cat?.sort_order ?? 998,
+        };
       });
       grouped.sort(
-        (a, b) => (a.categoryOrder ?? 999) - (b.categoryOrder ?? 999) || a.name.localeCompare(b.name, "ar"),
+        (a, b) =>
+          (a.categoryOrder ?? 999) - (b.categoryOrder ?? 999) ||
+          a.name.localeCompare(b.name, "ar"),
       );
-      const liveTotal = priced.reduce(
-        (n, i) => (i.note ? n : n + (i.price + (i.selectedOptions ?? []).reduce((m, s) => m + s.priceDelta, 0)) * i.qty),
-        0,
+      const liveTotal = round2(
+        priced.reduce(
+          (n, i) =>
+            i.note
+              ? n
+              : n +
+                lineTotal(
+                  {
+                    base: i.price,
+                    extra: normalizeExtraPrice(i.extraPrice),
+                    discountPercent: normalizeDiscountPercent(
+                      i.discountPercent,
+                    ),
+                  },
+                  i.qty,
+                  (i.selectedOptions ?? []).reduce(
+                    (m, s) => m + s.priceDelta,
+                    0,
+                  ),
+                ),
+          0,
+        ),
       );
       // Never trust stored delivery fees: re-read live zones + fee percent.
-      const [liveZones, livePct] = await Promise.all([getActiveZones(), getServiceFeePercent()]);
-      const liveZone = liveZones.find((z) => z.id === zoneId) ?? liveZones[0] ?? null;
+      const [liveZones, livePct] = await Promise.all([
+        getActiveZones(),
+        getServiceFeePercent(),
+      ]);
+      const liveZone =
+        liveZones.find((z) => z.id === zoneId) ?? liveZones[0] ?? null;
       if (!liveZone && priced.length > 0) {
         toast.error("التوصيل غير متاح حالياً، حاول تاني");
         setSending(false);
         return;
       }
       const liveFee = liveZone ? Number(liveZone.fee) : 0;
-      const liveServiceFee = priced.length > 0 ? round2((liveTotal * livePct) / 100) : 0;
-      const liveGrandTotal = round2(liveTotal + (priced.length > 0 ? liveFee : 0) + liveServiceFee);
+      const liveServiceFee =
+        priced.length > 0 ? round2((liveTotal * livePct) / 100) : 0;
+      const liveGrandTotal = round2(
+        liveTotal + (priced.length > 0 ? liveFee : 0) + liveServiceFee,
+      );
       // Recompute grand total with the service fee included.
       let orderNo: string;
       try {
@@ -262,12 +417,21 @@ function CheckoutPage() {
         setSending(false);
         return;
       }
-      const message = buildOrderMessage(grouped, form, liveTotal, {
-        zoneName: liveZone?.name ?? "",
-        fee: liveFee,
-        grandTotal: liveGrandTotal,
-        service: livePct > 0 ? { percent: livePct, amount: liveServiceFee } : undefined,
-      }, orderNo);
+      const message = buildOrderMessage(
+        grouped,
+        form,
+        liveTotal,
+        {
+          zoneName: liveZone?.name ?? "",
+          fee: liveFee,
+          grandTotal: liveGrandTotal,
+          service:
+            livePct > 0
+              ? { percent: livePct, amount: liveServiceFee }
+              : undefined,
+        },
+        orderNo,
+      );
       const result = await sendOrderMessage(message);
       if (!result.ok) {
         toast.error(result.error || "تعذر إرسال الطلب، حاول تاني");
@@ -306,7 +470,11 @@ function CheckoutPage() {
               placeholder="اكتب اسمك"
               className={field}
             />
-            {errors.name && <p className="mt-1 text-xs font-semibold text-destructive">{errors.name}</p>}
+            {errors.name && (
+              <p className="mt-1 text-xs font-semibold text-destructive">
+                {errors.name}
+              </p>
+            )}
           </div>
           <div>
             <label htmlFor="phone" className="mb-1 block text-sm font-bold">
@@ -320,7 +488,11 @@ function CheckoutPage() {
               placeholder="01012345678"
               className={field}
             />
-            {errors.phone && <p className="mt-1 text-xs font-semibold text-destructive">{errors.phone}</p>}
+            {errors.phone && (
+              <p className="mt-1 text-xs font-semibold text-destructive">
+                {errors.phone}
+              </p>
+            )}
           </div>
           <div>
             <label htmlFor="address" className="mb-1 block text-sm font-bold">
@@ -334,14 +506,22 @@ function CheckoutPage() {
               placeholder="اكتب عنوانك بالتفصيل"
               className="w-full resize-none rounded-xl border border-border bg-muted p-4 text-sm outline-none transition-colors focus:border-primary focus:bg-card"
             />
-            {errors.address && <p className="mt-1 text-xs font-semibold text-destructive">{errors.address}</p>}
+            {errors.address && (
+              <p className="mt-1 text-xs font-semibold text-destructive">
+                {errors.address}
+              </p>
+            )}
           </div>
         </div>
 
         <div className="space-y-2 rounded-2xl bg-card p-4 shadow-soft">
           <h2 className="font-extrabold">منطقة التوصيل</h2>
           {zones === null && !zonesFailed ? (
-            <div className="space-y-2" aria-busy="true" aria-label="جاري تحميل مناطق التوصيل">
+            <div
+              className="space-y-2"
+              aria-busy="true"
+              aria-label="جاري تحميل مناطق التوصيل"
+            >
               <div className="h-12 animate-pulse rounded-xl bg-muted" />
               <div className="h-12 animate-pulse rounded-xl bg-muted" />
             </div>
@@ -356,7 +536,11 @@ function CheckoutPage() {
                   getActiveZones().then(
                     (list) => {
                       setZones(list);
-                      setZoneId((current) => (current && list.some((z) => z.id === current) ? current : (list[0]?.id ?? null)));
+                      setZoneId((current) =>
+                        current && list.some((z) => z.id === current)
+                          ? current
+                          : (list[0]?.id ?? null),
+                      );
                     },
                     () => setZonesFailed(true),
                   );
@@ -371,7 +555,11 @@ function CheckoutPage() {
               التوصيل غير متاح حالياً. حاول لاحقًا.
             </p>
           ) : (
-            <div role="radiogroup" aria-label="منطقة التوصيل" className="space-y-2">
+            <div
+              role="radiogroup"
+              aria-label="منطقة التوصيل"
+              className="space-y-2"
+            >
               {zoneList.map((zone) => {
                 const fee = Number(zone.fee);
                 const checked = selectedZone?.id === zone.id;
@@ -379,7 +567,9 @@ function CheckoutPage() {
                   <label
                     key={zone.id}
                     className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-3 text-sm transition-colors ${
-                      checked ? "border-primary bg-primary/10" : "border-border bg-muted"
+                      checked
+                        ? "border-primary bg-primary/10"
+                        : "border-border bg-muted"
                     }`}
                   >
                     <span className="flex items-center gap-2 font-bold">
@@ -405,48 +595,82 @@ function CheckoutPage() {
         <div className="space-y-2 rounded-2xl bg-card p-4 shadow-soft">
           <h2 className="font-extrabold">ملخص الطلب</h2>
           <ul className="divide-y divide-border">
-            {orderable.map((item) => (
-              <li key={item.key} className="flex items-start justify-between gap-3 py-2 text-sm">
-                <span className="min-w-0">
-                  <span className="font-bold">{item.name}</span>
-                  {item.note ? (
-                    <>
-                      <span className="block text-xs text-muted-foreground">{item.note}</span>
-                      {item.subcategoryName && (
-                        <span className="block text-xs font-bold text-primary-dark">القسم: {item.subcategoryName}</span>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <span className="block text-xs text-muted-foreground">× {item.qty}</span>
-                      {(item.selectedOptions ?? []).length > 0 && (
+            {orderable.map((item) => {
+              const { pricing, optionDeltas } = itemPricing(item, live);
+              const lineTot = lineTotal(pricing, item.qty, optionDeltas);
+              return (
+                <li
+                  key={item.key}
+                  className="flex items-start justify-between gap-3 py-2 text-sm"
+                >
+                  <span className="min-w-0">
+                    <span className="font-bold">{item.name}</span>
+                    {item.note ? (
+                      <>
                         <span className="block text-xs text-muted-foreground">
-                          {(item.selectedOptions ?? []).map((s) => `${s.groupName}: ${s.optionName}`).join("، ")}
+                          {item.note}
                         </span>
-                      )}
-                    </>
-                  )}
-                </span>
-                {!item.note && (
-                  <span className="shrink-0 font-bold">
-                    {unitOf(item) * item.qty} {site.currency}
+                        {item.subcategoryName && (
+                          <span className="block text-xs font-bold text-primary-dark">
+                            القسم: {item.subcategoryName}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className="block text-xs text-muted-foreground">
+                          × {item.qty}
+                        </span>
+                        <PriceBlock
+                          price={pricing.base}
+                          extraPrice={pricing.extra}
+                          discountPercent={pricing.discountPercent}
+                          optionDeltas={optionDeltas}
+                          size="sm"
+                        />
+                        {(item.selectedOptions ?? []).length > 0 && (
+                          <span className="block text-xs text-muted-foreground">
+                            {(item.selectedOptions ?? [])
+                              .map((s) => `${s.groupName}: ${s.optionName}`)
+                              .join("، ")}
+                          </span>
+                        )}
+                      </>
+                    )}
                   </span>
-                )}
-              </li>
-            ))}
+                  {!item.note && (
+                    <span className="shrink-0 font-bold">
+                      {lineTot} {site.currency}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
           <div className="flex items-center justify-between border-t border-border pt-3 text-base font-extrabold">
-            <span>الإجمالي{orderable.some((i) => !!i.note) ? " (بدون الطلب المخصص)" : ""}</span>
+            <span>
+              الإجمالي
+              {orderable.some((i) => !!i.note) ? " (بدون الطلب المخصص)" : ""}
+            </span>
             <span className="text-primary-dark">
               {total} {site.currency}
             </span>
           </div>
           <div className="flex items-center justify-between text-sm font-bold">
             <span>
-              التوصيل{selectedZone ? ` (${selectedZone.name})` : zonesReady ? "" : " (…)"}
+              التوصيل
+              {selectedZone
+                ? ` (${selectedZone.name})`
+                : zonesReady
+                  ? ""
+                  : " (…)"}
             </span>
             <span className="text-primary-dark">
-              {!zonesReady ? "…" : selectedZone && deliveryFee === 0 ? "" : `${deliveryFee} ${site.currency}`}
+              {!zonesReady
+                ? "…"
+                : selectedZone && deliveryFee === 0
+                  ? ""
+                  : `${deliveryFee} ${site.currency}`}
             </span>
           </div>
           {feePct > 0 && (

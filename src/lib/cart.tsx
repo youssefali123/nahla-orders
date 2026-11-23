@@ -1,5 +1,20 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { getProductsByIds, type Product } from "./catalog";
+import {
+  lineTotal,
+  normalizeDiscountPercent,
+  normalizeExtraPrice,
+  round2,
+  unitPrice,
+} from "./pricing";
 
 export type SelectedOption = {
   groupId: string;
@@ -16,6 +31,8 @@ export type CartItem = {
   name: string;
   /** Base product price at add time (live base preferred at display). */
   price: number;
+  extraPrice?: number;
+  discountPercent?: number;
   icon: string;
   image?: string | null;
   qty: number;
@@ -27,7 +44,10 @@ export type CartItem = {
 };
 
 /** Deterministic line key so identical configurations merge into one line. */
-export function lineKeyFor(id: string, selections: SelectedOption[] = []): string {
+export function lineKeyFor(
+  id: string,
+  selections: SelectedOption[] = [],
+): string {
   if (selections.length === 0) return id;
   const sig = [...selections]
     .map((s) => s.optionId)
@@ -36,16 +56,37 @@ export function lineKeyFor(id: string, selections: SelectedOption[] = []): strin
   return `${id}::${sig}`;
 }
 
-/** Unit price = base + selected deltas (legacy items carry full price, zero deltas). */
-export function unitPriceOf(item: Pick<CartItem, "price" | "selectedOptions">): number {
-  const deltas = (item.selectedOptions ?? []).reduce((n, s) => n + s.priceDelta, 0);
-  return item.price + deltas;
+/** Unit price using shared pricing formula (legacy items carry zero extra/discount). */
+export function unitPriceOf(
+  item: Pick<CartItem, "price" | "selectedOptions"> & {
+    extraPrice?: number | null;
+    discountPercent?: number | null;
+    note?: string | null;
+  },
+): number {
+  if (item.note) return 0;
+  const deltas = (item.selectedOptions ?? []).reduce(
+    (n, s) => n + s.priceDelta,
+    0,
+  );
+  return unitPrice(
+    {
+      base: item.price,
+      extra: normalizeExtraPrice(item.extraPrice),
+      discountPercent: normalizeDiscountPercent(item.discountPercent),
+    },
+    deltas,
+  );
 }
 
-function normalizeItem(raw: Omit<CartItem, "qty" | "key"> & { key?: string; qty?: number }): CartItem {
+function normalizeItem(
+  raw: Omit<CartItem, "qty" | "key"> & { key?: string; qty?: number },
+): CartItem {
   const selections = raw.selectedOptions ?? [];
   return {
     ...raw,
+    extraPrice: normalizeExtraPrice(raw.extraPrice),
+    discountPercent: normalizeDiscountPercent(raw.discountPercent),
     qty: raw.qty ?? 1,
     selectedOptions: selections,
     key: raw.key || lineKeyFor(raw.id, selections),
@@ -74,7 +115,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setItems((JSON.parse(raw) as CartItem[]).map((i) => normalizeItem(i)));
+      if (raw)
+        setItems((JSON.parse(raw) as CartItem[]).map((i) => normalizeItem(i)));
     } catch {
       /* ignore corrupt storage */
     }
@@ -90,18 +132,25 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const line = normalizeItem(item);
     setItems((prev) => {
       const found = prev.find((i) => i.key === line.key);
-      if (found) return prev.map((i) => (i.key === line.key ? { ...i, qty: i.qty + qty } : i));
+      if (found)
+        return prev.map((i) =>
+          i.key === line.key ? { ...i, qty: i.qty + qty } : i,
+        );
       return [...prev, { ...line, qty }];
     });
   }, []);
 
   const increase = useCallback((key: string) => {
-    setItems((prev) => prev.map((i) => (i.key === key ? { ...i, qty: i.qty + 1 } : i)));
+    setItems((prev) =>
+      prev.map((i) => (i.key === key ? { ...i, qty: i.qty + 1 } : i)),
+    );
   }, []);
 
   const decrease = useCallback((key: string) => {
     setItems((prev) =>
-      prev.flatMap((i) => (i.key === key ? (i.qty > 1 ? [{ ...i, qty: i.qty - 1 }] : []) : [i])),
+      prev.flatMap((i) =>
+        i.key === key ? (i.qty > 1 ? [{ ...i, qty: i.qty - 1 }] : []) : [i],
+      ),
     );
   }, []);
 
@@ -115,8 +164,31 @@ export function CartProvider({ children }: { children: ReactNode }) {
     () => ({
       items,
       count: items.reduce((n, i) => n + i.qty, 0),
-      total: items.reduce((n, i) => n + i.qty * unitPriceOf(i), 0),
-      qtyOf: (id: string) => items.filter((i) => i.id === id).reduce((n, i) => n + i.qty, 0),
+      total: round2(
+        items.reduce(
+          (sum, i) =>
+            sum +
+            (i.note
+              ? 0
+              : lineTotal(
+                  {
+                    base: i.price,
+                    extra: normalizeExtraPrice(i.extraPrice),
+                    discountPercent: normalizeDiscountPercent(
+                      i.discountPercent,
+                    ),
+                  },
+                  i.qty,
+                  (i.selectedOptions ?? []).reduce(
+                    (n, s) => n + s.priceDelta,
+                    0,
+                  ),
+                )),
+          0,
+        ),
+      ),
+      qtyOf: (id: string) =>
+        items.filter((i) => i.id === id).reduce((n, i) => n + i.qty, 0),
       add,
       increase,
       decrease,
