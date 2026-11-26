@@ -119,10 +119,13 @@ Place a test order containing:
 
 Confirm the message contains:
 
-- `↳ إضافة: +60 جنيه` for the extra-only line, and `💵 إجمالي الإضافات: 60 جنيه`;
+- `↳ إضافة: +60 جنيه` for the extra-only line, and `💵 السعر الإضافي: 60 جنيه`;
 - `↳ خصم 20%: -40 جنيه` for the discounted line, and `🏷️ إجمالي الخصم: 40 جنيه`;
 - a final order total that matches the checkout screen total;
-- no additions/discount lines for products without them.
+- no additions/discount lines for products without them;
+- the summary order `إجمالي الطلب` → `إجمالي الخصم` → `رسوم الخدمة` →
+  `السعر الإضافي` → `رسوم التوصيل` → `الإجمالي الكلي`, with the delivery zone
+  shown right after the phone number.
 
 Also confirm the WhatsApp copy (if used) shows the same values.
 

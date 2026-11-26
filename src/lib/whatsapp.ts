@@ -35,7 +35,10 @@ export function buildOrderMessage(
   lines.push(`🐝 طلب جديد من ${site.name}`, "");
   if (orderNo) lines.push(`🔢 رقم الطلب:`, `${orderNo}`, "");
   lines.push("👤 اسم العميل:", customer.name, "");
-  lines.push("📱 رقم الهاتف:", customer.phone, "");
+  lines.push("📱 رقم التليفون:", customer.phone, "");
+  if (delivery && delivery.zoneName) {
+    lines.push("📍 منطقة التوصيل:", delivery.zoneName, "");
+  }
   lines.push("📍 العنوان:", customer.address, "");
   lines.push("🛒 تفاصيل الطلب:", "");
 
@@ -130,17 +133,25 @@ export function buildOrderMessage(
     }, 0),
   );
 
-  if (additionsTotal > 0) {
-    lines.push("💵 إجمالي الإضافات:", `${additionsTotal} ${site.currency}`, "");
-  }
+  lines.push(`💰 إجمالي الطلب:`, `${total} ${site.currency}`, "");
 
   if (discountTotal > 0) {
     lines.push("🏷️ إجمالي الخصم:", `${discountTotal} ${site.currency}`, "");
   }
 
-  lines.push(`💰 إجمالي الطلب:`, `${total} ${site.currency}`, "");
+  if (delivery?.service && delivery.service.percent > 0) {
+    lines.push(
+      `🧾 رسوم الخدمة (${delivery.service.percent}%):`,
+      `${delivery.service.amount} ${site.currency}`,
+      "",
+    );
+  }
+
+  if (additionsTotal > 0) {
+    lines.push("💵 السعر الإضافي:", `${additionsTotal} ${site.currency}`, "");
+  }
+
   if (delivery && delivery.zoneName) {
-    lines.push(`📍 منطقة التوصيل:`, delivery.zoneName, "");
     lines.push(
       `🛵 رسوم التوصيل:`,
       delivery.fee === 0
@@ -148,13 +159,6 @@ export function buildOrderMessage(
         : `${delivery.fee} ${site.currency}`,
       "",
     );
-    if (delivery.service && delivery.service.percent > 0) {
-      lines.push(
-        `🧾 رسوم الخدمة (${delivery.service.percent}%):`,
-        `${delivery.service.amount} ${site.currency}`,
-        "",
-      );
-    }
     lines.push(
       `💰 الإجمالي الكلي:`,
       `${delivery.grandTotal} ${site.currency}`,

@@ -17,7 +17,7 @@ import {
   type ConfiguredProduct,
 } from "@/lib/catalog";
 import { useCart } from "@/lib/cart";
-import { lineTotal, unitPrice } from "@/lib/pricing";
+import { lineTotal } from "@/lib/pricing";
 
 export const Route = createFileRoute("/product/$productId")({
   loader: async ({
@@ -136,7 +136,6 @@ function ProductPage() {
     discountPercent: product?.discount_percent ?? 0,
   };
   const optionDeltas = selectedOptions.reduce((n, s) => n + s.priceDelta, 0);
-  const currentUnitPrice = product ? unitPrice(pricing, optionDeltas) : 0;
 
   if (error || !product) {
     if (!error) throw notFound();
@@ -214,6 +213,7 @@ function ProductPage() {
             price={product.price}
             extraPrice={product.extra_price}
             discountPercent={product.discount_percent}
+            optionDeltas={optionDeltas}
             unit={product.unit}
             size="lg"
           />
