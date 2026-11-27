@@ -27,11 +27,17 @@ import {
   deleteStoredImage,
   getProductAdmin,
   listCategoriesAdmin,
+  listProductGroupsAdmin,
   listProductsAdmin,
   listSubcategoriesAdmin,
   saveProduct,
 } from "@/lib/admin";
-import type { Category, Product, Subcategory } from "@/lib/catalog";
+import type {
+  Category,
+  Product,
+  ProductGroup,
+  Subcategory,
+} from "@/lib/catalog";
 import { isOnOffer, unitPrice } from "@/lib/pricing";
 
 export const Route = createFileRoute("/admin/products")({
@@ -44,24 +50,29 @@ function AdminProductsPage() {
   const [rows, setRows] = useState<Product[] | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+  const [productGroups, setProductGroups] = useState<ProductGroup[]>([]);
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState("");
   const [catFilter, setCatFilter] = useState("all");
   const [subFilter, setSubFilter] = useState("all");
+  const [groupFilter, setGroupFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [deleting, setDeleting] = useState<Product | null>(null);
 
   const load = useCallback(async () => {
     setFailed(false);
     try {
-      const [products, cats, subs] = await Promise.all([
+      const [products, cats, subs, groups] = await Promise.all([
         listProductsAdmin(),
         listCategoriesAdmin(),
         listSubcategoriesAdmin(),
+        // Degrades gracefully before the feature-008 migration is applied.
+        listProductGroupsAdmin().catch(() => [] as ProductGroup[]),
       ]);
       setRows(products);
       setCategories(cats);
       setSubcategories(subs);
+      setProductGroups(groups);
     } catch {
       setFailed(true);
     }
@@ -80,6 +91,11 @@ function AdminProductsPage() {
       id ? (subcategories.find((s) => s.id === id)?.name ?? "—") : "—",
     [subcategories],
   );
+  const groupName = useCallback(
+    (id: string | null) =>
+      id ? (productGroups.find((g) => g.id === id)?.name ?? "—") : null,
+    [productGroups],
+  );
 
   const filtered = useMemo(
     () =>
@@ -87,11 +103,12 @@ function AdminProductsPage() {
         (p) =>
           (catFilter === "all" || p.category_id === catFilter) &&
           (subFilter === "all" || p.subcategory_id === subFilter) &&
+          (groupFilter === "all" || p.group_id === groupFilter) &&
           (statusFilter === "all" ||
             (statusFilter === "active") === p.is_active) &&
           p.name.includes(query.trim()),
       ),
-    [rows, query, catFilter, subFilter, statusFilter],
+    [rows, query, catFilter, subFilter, groupFilter, statusFilter],
   );
 
   async function toggle(row: Product) {
@@ -99,6 +116,7 @@ function AdminProductsPage() {
       await saveProduct(row.id, {
         category_id: row.category_id,
         subcategory_id: row.subcategory_id,
+        group_id: row.group_id ?? null,
         name: row.name,
         price: Number(row.price),
         extra_price: Number(row.extra_price ?? 0),
@@ -152,6 +170,7 @@ function AdminProductsPage() {
             onValueChange={(v) => {
               setCatFilter(v);
               setSubFilter("all");
+              setGroupFilter("all");
             }}
           >
             <SelectTrigger
@@ -169,7 +188,13 @@ function AdminProductsPage() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={subFilter} onValueChange={setSubFilter}>
+          <Select
+            value={subFilter}
+            onValueChange={(v) => {
+              setSubFilter(v);
+              setGroupFilter("all");
+            }}
+          >
             <SelectTrigger
               className="h-11 w-full rounded-xl sm:w-44"
               aria-label="تصفية بالتصنيف الفرعي"
@@ -189,6 +214,27 @@ function AdminProductsPage() {
                 ))}
             </SelectContent>
           </Select>
+          {subFilter !== "all" &&
+            productGroups.some((g) => g.subcategory_id === subFilter) && (
+              <Select value={groupFilter} onValueChange={setGroupFilter}>
+                <SelectTrigger
+                  className="h-11 w-full rounded-xl sm:w-44"
+                  aria-label="تصفية بمجموعة المنتجات"
+                >
+                  <SelectValue placeholder="المجموعة" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">كل المجموعات</SelectItem>
+                  {productGroups
+                    .filter((g) => g.subcategory_id === subFilter)
+                    .map((g) => (
+                      <SelectItem key={g.id} value={g.id}>
+                        {g.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            )}
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger
               className="h-11 w-full rounded-xl sm:w-36"
@@ -234,7 +280,13 @@ function AdminProductsPage() {
                     <span>
                       <span className="block font-bold">{p.name}</span>
                       <span className="block text-xs text-muted-foreground">
-                        {catName(p.category_id)}
+                        {[
+                          catName(p.category_id),
+                          p.subcategory_id ? subName(p.subcategory_id) : null,
+                          groupName(p.group_id),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </span>
                     </span>
                   </span>

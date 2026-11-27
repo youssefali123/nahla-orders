@@ -20,6 +20,7 @@ import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminAccountRouteImport } from './routes/admin.account'
 import { Route as AdminBannersRouteImport } from './routes/admin.banners'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
+import { Route as AdminGroupsRouteImport } from './routes/admin.groups'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as AdminProductEditorRouteImport } from './routes/admin.product-editor'
 import { Route as AdminProductsRouteImport } from './routes/admin.products'
@@ -28,7 +29,8 @@ import { Route as AdminSubcategoriesRouteImport } from './routes/admin.subcatego
 import { Route as AdminZonesRouteImport } from './routes/admin.zones'
 import { Route as ProductProductIdRouteImport } from './routes/product.$productId'
 import { Route as CategoryCategoryIdIndexRouteImport } from './routes/category.$categoryId.index'
-import { Route as CategoryCategoryIdSubIdRouteImport } from './routes/category.$categoryId.$subId'
+import { Route as CategoryCategoryIdSubIdIndexRouteImport } from './routes/category.$categoryId.$subId.index'
+import { Route as CategoryCategoryIdSubIdGroupIdRouteImport } from './routes/category.$categoryId.$subId.$groupId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -85,6 +87,11 @@ const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   path: '/admin/categories',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminGroupsRoute = AdminGroupsRouteImport.update({
+  id: '/admin/groups',
+  path: '/admin/groups',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminLoginRoute = AdminLoginRouteImport.update({
   id: '/admin/login',
   path: '/admin/login',
@@ -125,11 +132,18 @@ const CategoryCategoryIdIndexRoute = CategoryCategoryIdIndexRouteImport.update({
   path: '/category/$categoryId/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CategoryCategoryIdSubIdRoute = CategoryCategoryIdSubIdRouteImport.update({
-  id: '/category/$categoryId/$subId',
-  path: '/category/$categoryId/$subId',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const CategoryCategoryIdSubIdIndexRoute =
+  CategoryCategoryIdSubIdIndexRouteImport.update({
+    id: '/category/$categoryId/$subId/',
+    path: '/category/$categoryId/$subId/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const CategoryCategoryIdSubIdGroupIdRoute =
+  CategoryCategoryIdSubIdGroupIdRouteImport.update({
+    id: '/category/$categoryId/$subId/$groupId',
+    path: '/category/$categoryId/$subId/$groupId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -142,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/admin/account': typeof AdminAccountRoute
   '/admin/banners': typeof AdminBannersRoute
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/groups': typeof AdminGroupsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/product-editor': typeof AdminProductEditorRoute
   '/admin/products': typeof AdminProductsRoute
@@ -150,8 +165,9 @@ export interface FileRoutesByFullPath {
   '/admin/zones': typeof AdminZonesRoute
   '/product/$productId': typeof ProductProductIdRoute
   '/admin/': typeof AdminIndexRoute
-  '/category/$categoryId/$subId': typeof CategoryCategoryIdSubIdRoute
   '/category/$categoryId/': typeof CategoryCategoryIdIndexRoute
+  '/category/$categoryId/$subId/$groupId': typeof CategoryCategoryIdSubIdGroupIdRoute
+  '/category/$categoryId/$subId/': typeof CategoryCategoryIdSubIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -164,6 +180,7 @@ export interface FileRoutesByTo {
   '/admin/account': typeof AdminAccountRoute
   '/admin/banners': typeof AdminBannersRoute
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/groups': typeof AdminGroupsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/product-editor': typeof AdminProductEditorRoute
   '/admin/products': typeof AdminProductsRoute
@@ -172,8 +189,9 @@ export interface FileRoutesByTo {
   '/admin/zones': typeof AdminZonesRoute
   '/product/$productId': typeof ProductProductIdRoute
   '/admin': typeof AdminIndexRoute
-  '/category/$categoryId/$subId': typeof CategoryCategoryIdSubIdRoute
   '/category/$categoryId': typeof CategoryCategoryIdIndexRoute
+  '/category/$categoryId/$subId/$groupId': typeof CategoryCategoryIdSubIdGroupIdRoute
+  '/category/$categoryId/$subId': typeof CategoryCategoryIdSubIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -187,6 +205,7 @@ export interface FileRoutesById {
   '/admin/account': typeof AdminAccountRoute
   '/admin/banners': typeof AdminBannersRoute
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/groups': typeof AdminGroupsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/product-editor': typeof AdminProductEditorRoute
   '/admin/products': typeof AdminProductsRoute
@@ -195,8 +214,9 @@ export interface FileRoutesById {
   '/admin/zones': typeof AdminZonesRoute
   '/product/$productId': typeof ProductProductIdRoute
   '/admin/': typeof AdminIndexRoute
-  '/category/$categoryId/$subId': typeof CategoryCategoryIdSubIdRoute
   '/category/$categoryId/': typeof CategoryCategoryIdIndexRoute
+  '/category/$categoryId/$subId/$groupId': typeof CategoryCategoryIdSubIdGroupIdRoute
+  '/category/$categoryId/$subId/': typeof CategoryCategoryIdSubIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -211,6 +231,7 @@ export interface FileRouteTypes {
     | '/admin/account'
     | '/admin/banners'
     | '/admin/categories'
+    | '/admin/groups'
     | '/admin/login'
     | '/admin/product-editor'
     | '/admin/products'
@@ -219,8 +240,9 @@ export interface FileRouteTypes {
     | '/admin/zones'
     | '/product/$productId'
     | '/admin/'
-    | '/category/$categoryId/$subId'
     | '/category/$categoryId/'
+    | '/category/$categoryId/$subId/$groupId'
+    | '/category/$categoryId/$subId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -233,6 +255,7 @@ export interface FileRouteTypes {
     | '/admin/account'
     | '/admin/banners'
     | '/admin/categories'
+    | '/admin/groups'
     | '/admin/login'
     | '/admin/product-editor'
     | '/admin/products'
@@ -241,8 +264,9 @@ export interface FileRouteTypes {
     | '/admin/zones'
     | '/product/$productId'
     | '/admin'
-    | '/category/$categoryId/$subId'
     | '/category/$categoryId'
+    | '/category/$categoryId/$subId/$groupId'
+    | '/category/$categoryId/$subId'
   id:
     | '__root__'
     | '/'
@@ -255,6 +279,7 @@ export interface FileRouteTypes {
     | '/admin/account'
     | '/admin/banners'
     | '/admin/categories'
+    | '/admin/groups'
     | '/admin/login'
     | '/admin/product-editor'
     | '/admin/products'
@@ -263,8 +288,9 @@ export interface FileRouteTypes {
     | '/admin/zones'
     | '/product/$productId'
     | '/admin/'
-    | '/category/$categoryId/$subId'
     | '/category/$categoryId/'
+    | '/category/$categoryId/$subId/$groupId'
+    | '/category/$categoryId/$subId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -278,6 +304,7 @@ export interface RootRouteChildren {
   AdminAccountRoute: typeof AdminAccountRoute
   AdminBannersRoute: typeof AdminBannersRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
+  AdminGroupsRoute: typeof AdminGroupsRoute
   AdminLoginRoute: typeof AdminLoginRoute
   AdminProductEditorRoute: typeof AdminProductEditorRoute
   AdminProductsRoute: typeof AdminProductsRoute
@@ -286,8 +313,9 @@ export interface RootRouteChildren {
   AdminZonesRoute: typeof AdminZonesRoute
   ProductProductIdRoute: typeof ProductProductIdRoute
   AdminIndexRoute: typeof AdminIndexRoute
-  CategoryCategoryIdSubIdRoute: typeof CategoryCategoryIdSubIdRoute
   CategoryCategoryIdIndexRoute: typeof CategoryCategoryIdIndexRoute
+  CategoryCategoryIdSubIdGroupIdRoute: typeof CategoryCategoryIdSubIdGroupIdRoute
+  CategoryCategoryIdSubIdIndexRoute: typeof CategoryCategoryIdSubIdIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -369,6 +397,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCategoriesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/groups': {
+      id: '/admin/groups'
+      path: '/admin/groups'
+      fullPath: '/admin/groups'
+      preLoaderRoute: typeof AdminGroupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/login': {
       id: '/admin/login'
       path: '/admin/login'
@@ -425,11 +460,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CategoryCategoryIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/category/$categoryId/$subId': {
-      id: '/category/$categoryId/$subId'
+    '/category/$categoryId/$subId/': {
+      id: '/category/$categoryId/$subId/'
       path: '/category/$categoryId/$subId'
-      fullPath: '/category/$categoryId/$subId'
-      preLoaderRoute: typeof CategoryCategoryIdSubIdRouteImport
+      fullPath: '/category/$categoryId/$subId/'
+      preLoaderRoute: typeof CategoryCategoryIdSubIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/category/$categoryId/$subId/$groupId': {
+      id: '/category/$categoryId/$subId/$groupId'
+      path: '/category/$categoryId/$subId/$groupId'
+      fullPath: '/category/$categoryId/$subId/$groupId'
+      preLoaderRoute: typeof CategoryCategoryIdSubIdGroupIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -446,6 +488,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminAccountRoute: AdminAccountRoute,
   AdminBannersRoute: AdminBannersRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
+  AdminGroupsRoute: AdminGroupsRoute,
   AdminLoginRoute: AdminLoginRoute,
   AdminProductEditorRoute: AdminProductEditorRoute,
   AdminProductsRoute: AdminProductsRoute,
@@ -454,8 +497,9 @@ const rootRouteChildren: RootRouteChildren = {
   AdminZonesRoute: AdminZonesRoute,
   ProductProductIdRoute: ProductProductIdRoute,
   AdminIndexRoute: AdminIndexRoute,
-  CategoryCategoryIdSubIdRoute: CategoryCategoryIdSubIdRoute,
   CategoryCategoryIdIndexRoute: CategoryCategoryIdIndexRoute,
+  CategoryCategoryIdSubIdGroupIdRoute: CategoryCategoryIdSubIdGroupIdRoute,
+  CategoryCategoryIdSubIdIndexRoute: CategoryCategoryIdSubIdIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

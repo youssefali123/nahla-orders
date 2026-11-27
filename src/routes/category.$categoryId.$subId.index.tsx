@@ -12,6 +12,7 @@ import { FilterBar } from "@/components/FilterBar";
 import { Notice } from "@/components/Notice";
 import { ProductGrid } from "@/components/ProductCard";
 import {
+  getActiveGroups,
   getCategory,
   getProductsWithFilters,
   getProductsWithOptions,
@@ -19,6 +20,7 @@ import {
   getSubcategory,
   type Category,
   type DisplayFilter,
+  type ProductGroup,
   type ProductWithFilter,
   type Subcategory,
 } from "@/lib/catalog";
@@ -27,13 +29,14 @@ import { SUPABASE_ENABLED } from "@/config/site";
 type SubcategoryLoaderData = {
   category: Category | null;
   sub: Subcategory | null;
+  groups: ProductGroup[];
   products: ProductWithFilter[];
   filters: DisplayFilter[];
   optionFlags: Record<string, boolean>;
   error: string | null;
 };
 
-export const Route = createFileRoute("/category/$categoryId/$subId")({
+export const Route = createFileRoute("/category/$categoryId/$subId/")({
   loader: async ({ params }): Promise<SubcategoryLoaderData> => {
     if (!SUPABASE_ENABLED) {
       throw redirect({ to: "/" });
@@ -49,6 +52,7 @@ export const Route = createFileRoute("/category/$categoryId/$subId")({
       return {
         category: null,
         sub: null,
+        groups: [],
         products: [],
         filters: [],
         optionFlags: {},
@@ -57,17 +61,32 @@ export const Route = createFileRoute("/category/$categoryId/$subId")({
     }
     if (!category || !sub) throw notFound();
     try {
-      const products = await getProductsWithFilters(category.id, sub.id);
+      const groups = await getActiveGroups(sub.id);
+      const products =
+        groups.length === 0
+          ? await getProductsWithFilters(category.id, sub.id)
+          : [];
       const [optionFlags, filters] = await Promise.all([
         getProductsWithOptions(products.map((p) => p.id)),
-        getSectionFilters("subcategory", sub.id),
+        groups.length === 0
+          ? getSectionFilters("subcategory", sub.id)
+          : Promise.resolve([] as DisplayFilter[]),
       ]);
-      return { category, sub, products, filters, optionFlags, error: null };
+      return {
+        category,
+        sub,
+        groups,
+        products,
+        filters,
+        optionFlags,
+        error: null,
+      };
     } catch (error) {
       console.error(error);
       return {
         category,
         sub,
+        groups: [],
         products: [],
         filters: [],
         optionFlags: {},
@@ -94,7 +113,7 @@ export const Route = createFileRoute("/category/$categoryId/$subId")({
 });
 
 function SubcategoryPage() {
-  const { category, sub, products, filters, optionFlags, error } =
+  const { category, sub, groups, products, filters, optionFlags, error } =
     Route.useLoaderData();
   const router = useRouter();
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
@@ -160,7 +179,41 @@ function SubcategoryPage() {
         <Notice text="طلبات الأكل البيتي يجب طلبها قبلها بيوم." />
       )}
 
-      {products.length > 0 ? (
+      {groups.length > 0 ? (
+        <div className="grid grid-cols-3 gap-2.5 rounded-2xl bg-card p-3 shadow-soft sm:grid-cols-3 sm:p-4 md:grid-cols-4 lg:grid-cols-6">
+          {groups.map((group) => (
+            <Link
+              key={group.id}
+              to="/category/$categoryId/$subId/$groupId"
+              params={{
+                categoryId: category.id,
+                subId: sub.id,
+                groupId: group.id,
+              }}
+              className="group flex flex-col items-center gap-1.5 text-center"
+            >
+              <span
+                className="grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-accent/25 text-3xl transition-transform duration-300 group-hover:scale-[1.03] sm:text-4xl"
+                aria-hidden
+              >
+                {group.image_url ? (
+                  <img
+                    src={group.image_url}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  (group.icon ?? "🐝")
+                )}
+              </span>
+              <span className="line-clamp-2 text-xs font-bold leading-tight sm:text-sm">
+                {group.name}
+              </span>
+            </Link>
+          ))}
+        </div>
+      ) : products.length > 0 ? (
         <>
           {filters.length > 0 && (
             <FilterBar

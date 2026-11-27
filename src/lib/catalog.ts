@@ -51,10 +51,24 @@ export type Subcategory = {
   product_layout: "grid" | "list";
 };
 
+export type ProductGroup = {
+  id: string;
+  subcategory_id: string;
+  name: string;
+  icon: string | null;
+  image_url: string | null;
+  sort_order: number;
+  is_active: boolean;
+  requires_preorder: boolean;
+  has_filters: boolean;
+  product_layout: "grid" | "list";
+};
+
 export type Product = {
   id: string;
   category_id: string;
   subcategory_id: string | null;
+  group_id: string | null;
   name: string;
   price: number;
   extra_price: number;
@@ -116,6 +130,13 @@ function toCategory(row: Record<string, unknown>): Category {
 function toSubcategory(row: Record<string, unknown>): Subcategory {
   return {
     ...(row as unknown as Subcategory),
+    product_layout: row["product_layout"] === "list" ? "list" : "grid",
+  };
+}
+
+function toProductGroup(row: Record<string, unknown>): ProductGroup {
+  return {
+    ...(row as unknown as ProductGroup),
     product_layout: row["product_layout"] === "list" ? "list" : "grid",
   };
 }
@@ -206,6 +227,47 @@ export async function getSubcategory(
   }
 }
 
+/** Active groups of a subcategory; empty array means show products directly. */
+export async function getActiveGroups(
+  subcategoryId: string,
+): Promise<ProductGroup[]> {
+  if (!SUPABASE_ENABLED) return [];
+  try {
+    const { data, error } = await supabase
+      .from("product_groups")
+      .select("*")
+      .eq("subcategory_id", subcategoryId)
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true });
+    if (error) throw toCatalogError("تحميل مجموعات المنتجات", error);
+    return ((data ?? []) as Record<string, unknown>[]).map(toProductGroup);
+  } catch (err) {
+    console.error("getActiveGroups fallback:", err);
+    return [];
+  }
+}
+
+/** A group when it belongs to the given subcategory, else null. */
+export async function getGroup(
+  subcategoryId: string,
+  groupId: string,
+): Promise<ProductGroup | null> {
+  if (!SUPABASE_ENABLED) return null;
+  try {
+    const { data, error } = await supabase
+      .from("product_groups")
+      .select("*")
+      .eq("id", groupId)
+      .eq("subcategory_id", subcategoryId)
+      .maybeSingle();
+    if (error) throw toCatalogError("تحميل مجموعة المنتجات", error);
+    return data ? toProductGroup(data as Record<string, unknown>) : null;
+  } catch (err) {
+    console.error("getGroup fallback:", err);
+    return null;
+  }
+}
+
 function baseProductQuery() {
   return supabase
     .from("products")
@@ -214,15 +276,17 @@ function baseProductQuery() {
     .order(ACTIVE_ORDER_COLUMN, { ascending: true });
 }
 
-/** Active products of a category, optionally narrowed to one subcategory. */
+/** Active products of a category, optionally narrowed to one subcategory/group. */
 export async function getActiveProducts(
   categoryId: string,
   subcategoryId?: string,
+  groupId?: string,
 ): Promise<Product[]> {
   if (!SUPABASE_ENABLED) return [];
   try {
     let query = baseProductQuery().eq("category_id", categoryId);
     if (subcategoryId) query = query.eq("subcategory_id", subcategoryId);
+    if (groupId) query = query.eq("group_id", groupId);
     const { data, error } = await query;
     if (error) throw toCatalogError("تحميل المنتجات", error);
     return ((data ?? []) as Record<string, unknown>[]).map(toProduct);
@@ -505,12 +569,17 @@ export type ProductWithFilter = Product & { filter_id: string | null };
  * (caller hides the chip bar).
  */
 export async function getSectionFilters(
-  kind: "subcategory" | "category",
+  kind: "subcategory" | "category" | "group",
   id: string,
 ): Promise<DisplayFilter[]> {
   if (!SUPABASE_ENABLED) return [];
   try {
-    const column = kind === "subcategory" ? "subcategory_id" : "category_id";
+    const column =
+      kind === "group"
+        ? "group_id"
+        : kind === "subcategory"
+          ? "subcategory_id"
+          : "category_id";
     const { data, error } = await supabase
       .from("subcategory_filters")
       .select("id,name,sort_order,is_active")
@@ -532,10 +601,15 @@ export async function getSectionFilters(
 export async function getProductsWithFilters(
   categoryId: string,
   subcategoryId?: string,
+  groupId?: string,
 ): Promise<ProductWithFilter[]> {
   if (!SUPABASE_ENABLED) return [];
   try {
-    const products = await getActiveProducts(categoryId, subcategoryId);
+    const products = await getActiveProducts(
+      categoryId,
+      subcategoryId,
+      groupId,
+    );
     if (products.length === 0) return [];
     const { data, error } = await supabase
       .from("product_filter_values")

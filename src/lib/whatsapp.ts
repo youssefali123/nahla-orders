@@ -80,9 +80,9 @@ export function buildOrderMessage(
         `${n}. ${item.name} × ${item.qty}`,
         `السعر: ${itemLineTotal} ${site.currency}`,
       );
-      if (pricing.extra > 0) {
-        lines.push(`↳ إضافة: +${itemExtraTotal} ${site.currency}`);
-      }
+      // if (pricing.extra > 0) {
+      //   lines.push(`↳ إضافة: +${itemExtraTotal} ${site.currency}`);
+      // }
       if (pricing.discountPercent > 0) {
         lines.push(
           `↳ خصم ${pricing.discountPercent}%: -${itemDiscountTotal} ${site.currency}`,
@@ -148,7 +148,7 @@ export function buildOrderMessage(
   }
 
   if (additionsTotal > 0) {
-    lines.push("💵 السعر الإضافي:", `${additionsTotal} ${site.currency}`, "");
+    lines.push("💵 فرق السعر", `${additionsTotal} ${site.currency}`, "");
   }
 
   if (delivery && delivery.zoneName) {

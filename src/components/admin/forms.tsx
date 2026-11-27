@@ -56,7 +56,13 @@ export function ImageUploader({
   error,
 }: {
   id: string;
-  prefix?: "categories" | "subcategories" | "products" | "banners" | "options";
+  prefix?:
+    | "categories"
+    | "subcategories"
+    | "product-groups"
+    | "products"
+    | "banners"
+    | "options";
   value: string | null;
   onChange: (url: string | null) => void;
   error?: string | null;

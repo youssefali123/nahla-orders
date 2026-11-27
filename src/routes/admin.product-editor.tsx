@@ -34,6 +34,7 @@ import {
   getProductFilter,
   listCategoriesAdmin,
   listFiltersAdmin,
+  listProductGroupsAdmin,
   listSubcategoriesAdmin,
   saveProduct,
   saveProductFilter,
@@ -43,6 +44,7 @@ import type {
   Category,
   ConfiguredProduct,
   DisplayFilter,
+  ProductGroup,
   Subcategory,
 } from "@/lib/catalog";
 import {
@@ -64,6 +66,7 @@ export const Route = createFileRoute("/admin/product-editor")({
 const EMPTY: ProductInput = {
   category_id: "",
   subcategory_id: null,
+  group_id: null,
   name: "",
   price: 0,
   extra_price: 0,
@@ -84,6 +87,7 @@ function ProductEditorPage() {
   const [failed, setFailed] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+  const [productGroups, setProductGroups] = useState<ProductGroup[]>([]);
   const [form, setForm] = useState<ProductInput>({ ...EMPTY });
   const [product, setProduct] = useState<ConfiguredProduct | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
@@ -99,12 +103,15 @@ function ProductEditorPage() {
   const load = useCallback(async () => {
     setFailed(false);
     try {
-      const [cats, subs] = await Promise.all([
+      const [cats, subs, groups] = await Promise.all([
         listCategoriesAdmin(),
         listSubcategoriesAdmin(),
+        // Degrades gracefully before the feature-008 migration is applied.
+        listProductGroupsAdmin().catch(() => [] as ProductGroup[]),
       ]);
       setCategories(cats);
       setSubcategories(subs);
+      setProductGroups(groups);
       if (id) {
         const fetched = await getProductAdmin(id);
         if (!fetched) {
@@ -115,6 +122,7 @@ function ProductEditorPage() {
         setForm({
           category_id: fetched.category_id,
           subcategory_id: fetched.subcategory_id,
+          group_id: fetched.group_id ?? null,
           name: fetched.name,
           price: Number(fetched.price),
           extra_price: Number(fetched.extra_price ?? 0),
@@ -139,16 +147,21 @@ function ProductEditorPage() {
     load();
   }, [load]);
 
-  // Section filter values: subcategory wins, else the direct category.
-  // Re-resolves on section change; stale assignments clear automatically.
+  // Section filter values: group wins, then subcategory, then the direct
+  // category. Re-resolves on section change; stale assignments clear.
   useEffect(() => {
     let cancelled = false;
+    const groupId = form.group_id;
     const subId = form.subcategory_id;
     const catId = form.category_id;
     (async () => {
       try {
         let list: DisplayFilter[] = [];
-        if (subId)
+        if (groupId)
+          list = (await listFiltersAdmin("group", groupId)).filter(
+            (f) => f.is_active,
+          );
+        else if (subId)
           list = (await listFiltersAdmin("subcategory", subId)).filter(
             (f) => f.is_active,
           );
@@ -168,7 +181,7 @@ function ProductEditorPage() {
     return () => {
       cancelled = true;
     };
-  }, [form.subcategory_id, form.category_id]);
+  }, [form.group_id, form.subcategory_id, form.category_id]);
 
   // Current assignment for existing products.
   useEffect(() => {
@@ -194,7 +207,10 @@ function ProductEditorPage() {
     setForm((f) => ({
       ...f,
       [key]: value,
-      ...(key === "category_id" ? { subcategory_id: null } : {}),
+      ...(key === "category_id"
+        ? { subcategory_id: null, group_id: null }
+        : {}),
+      ...(key === "subcategory_id" ? { group_id: null } : {}),
     }));
     setDirty(true);
   }
@@ -275,6 +291,7 @@ function ProductEditorPage() {
       ...EMPTY,
       category_id: form.category_id,
       subcategory_id: form.subcategory_id,
+      group_id: form.group_id,
     });
     setProduct(null);
     setFilterId(null);
@@ -287,6 +304,9 @@ function ProductEditorPage() {
 
   const subOptions = subcategories.filter(
     (s) => s.category_id === form.category_id,
+  );
+  const groupOptions = productGroups.filter(
+    (g) => g.subcategory_id === form.subcategory_id,
   );
   const pricingInput = {
     base: Number(form.price) || 0,
@@ -505,6 +525,31 @@ function ProductEditorPage() {
                   </Select>
                 </Field>
               </div>
+              <Field
+                id="pe-group"
+                label="مجموعة المنتجات"
+                hint="لو القسم الفرعي عنده مجموعات، اختار المجموعة — وإلا المنتج مش هيظهر في المتجر"
+              >
+                <Select
+                  value={form.group_id ?? "none"}
+                  onValueChange={(v) =>
+                    set("group_id", v === "none" ? null : v)
+                  }
+                  disabled={!form.subcategory_id || groupOptions.length === 0}
+                >
+                  <SelectTrigger id="pe-group" className="h-12 rounded-xl">
+                    <SelectValue placeholder="بدون مجموعة" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">بدون مجموعة</SelectItem>
+                    {groupOptions.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>
+                        {g.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
               {filterOptions.length > 0 && (
                 <Field
                   id="pe-filter"

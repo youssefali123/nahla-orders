@@ -13,6 +13,7 @@ import type {
   DisplayFilter,
   OptionGroup,
   Product,
+  ProductGroup,
   ProductOption,
   Subcategory,
 } from "./catalog";
@@ -145,9 +146,26 @@ export async function listSubcategoriesAdmin(
   }));
 }
 
+export async function listProductGroupsAdmin(
+  subcategoryId?: string,
+): Promise<ProductGroup[]> {
+  let query = getSessionClient()
+    .from("product_groups")
+    .select("*")
+    .order("sort_order", ORDER);
+  if (subcategoryId) query = query.eq("subcategory_id", subcategoryId);
+  const { data, error } = await query;
+  if (error) throw toAdminError("تعذر تحميل مجموعات المنتجات.", error);
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+    ...(row as unknown as ProductGroup),
+    product_layout: row["product_layout"] === "list" ? "list" : "grid",
+  }));
+}
+
 export type ProductFilters = {
   categoryId?: string;
   subcategoryId?: string;
+  groupId?: string;
   isActive?: boolean;
   query?: string;
 };
@@ -162,6 +180,7 @@ export async function listProductsAdmin(
   if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
   if (filters.subcategoryId)
     query = query.eq("subcategory_id", filters.subcategoryId);
+  if (filters.groupId) query = query.eq("group_id", filters.groupId);
   if (filters.isActive !== undefined)
     query = query.eq("is_active", filters.isActive);
   if (filters.query?.trim()) {
@@ -355,9 +374,46 @@ export async function deleteSubcategory(id: string): Promise<void> {
   if (error) throw toAdminError("تعذر حذف التصنيف الفرعي.", error);
 }
 
+export type ProductGroupInput = {
+  subcategory_id: string;
+  name: string;
+  icon?: string | null;
+  image_url?: string | null;
+  sort_order: number;
+  is_active: boolean;
+  requires_preorder: boolean;
+  has_filters: boolean;
+  product_layout: "grid" | "list";
+};
+
+export async function saveProductGroup(
+  id: string | null,
+  input: ProductGroupInput,
+): Promise<void> {
+  const client = getSessionClient();
+  const payload = {
+    ...input,
+    product_layout: input.product_layout === "list" ? "list" : "grid",
+  };
+  const { error } =
+    id === null
+      ? await client.from("product_groups").insert(payload)
+      : await client.from("product_groups").update(payload).eq("id", id);
+  if (error) throw toAdminError("تعذر حفظ مجموعة المنتجات.", error);
+}
+
+export async function deleteProductGroup(id: string): Promise<void> {
+  const { error } = await getSessionClient()
+    .from("product_groups")
+    .delete()
+    .eq("id", id);
+  if (error) throw toAdminError("تعذر حذف مجموعة المنتجات.", error);
+}
+
 export type ProductInput = {
   category_id: string;
   subcategory_id: string | null;
+  group_id: string | null;
   name: string;
   price: number;
   extra_price: number;
@@ -654,10 +710,14 @@ export async function cleanupReplacedOptionImage(
   }
 }
 
-export type FilterParentKind = "subcategory" | "category";
+export type FilterParentKind = "subcategory" | "category" | "group";
 
 function filterParentColumn(kind: FilterParentKind) {
-  return kind === "subcategory" ? "subcategory_id" : "category_id";
+  return kind === "group"
+    ? "group_id"
+    : kind === "subcategory"
+      ? "subcategory_id"
+      : "category_id";
 }
 
 export async function listFiltersAdmin(
@@ -716,7 +776,12 @@ export async function setSectionFiltering(
   id: string,
   enabled: boolean,
 ): Promise<void> {
-  const table = kind === "subcategory" ? "subcategories" : "categories";
+  const table =
+    kind === "group"
+      ? "product_groups"
+      : kind === "subcategory"
+        ? "subcategories"
+        : "categories";
   const { error } = await getSessionClient()
     .from(table)
     .update({ has_filters: enabled })

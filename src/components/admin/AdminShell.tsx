@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
+  Boxes,
   Image,
   LayoutDashboard,
   ListTree,
@@ -26,6 +27,7 @@ const NAV: { title: string; items: NavItem[] }[] = [
     items: [
       { to: "/admin/categories", label: "التصنيفات", icon: Shapes, matchPrefix: true },
       { to: "/admin/subcategories", label: "التصنيفات الفرعية", icon: ListTree, matchPrefix: true },
+      { to: "/admin/groups", label: "مجموعات المنتجات", icon: Boxes, matchPrefix: true },
       { to: "/admin/products", label: "المنتجات", icon: ShoppingBag, matchPrefix: true },
     ],
   },
