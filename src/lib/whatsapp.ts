@@ -80,9 +80,9 @@ export function buildOrderMessage(
         `${n}. ${item.name} × ${item.qty}`,
         `السعر: ${itemLineTotal} ${site.currency}`,
       );
-      // if (pricing.extra > 0) {
-      //   lines.push(`↳ إضافة: +${itemExtraTotal} ${site.currency}`);
-      // }
+      if (pricing.extra > 0) {
+        lines.push(`↳ إضافة: +${itemExtraTotal} ${site.currency}`);
+      }
       if (pricing.discountPercent > 0) {
         lines.push(
           `↳ خصم ${pricing.discountPercent}%: -${itemDiscountTotal} ${site.currency}`,
